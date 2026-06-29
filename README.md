@@ -48,7 +48,7 @@ pip install fastapi uvicorn requests fastmcp duckduckgo-search feedparser
 ### WebAssembly Runtime
 
 The LispE interpreter is compiled to WebAssembly and shipped as `lispe/lispe.js` + `lispe/lispe.wasm`. No additional installation is needed — the browser loads them automatically.
-
+The LispE interpreter code is [available here](https://github.com/naver/lispe)
 ---
 
 ## Running the Application
