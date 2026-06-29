@@ -502,6 +502,11 @@ const builtinFunctionSuggestions = {
     'load_data(path)': 'Load a file from disk and return its content',
     'eval_python(code)': 'Evaluate Pythonic code: compile to LispE then execute synchronously',
     'eval_code(code)': 'Evaluate a LispE code string in a fresh dedicated interpreter',
+    'add_pdf_to_prompt(chat source (prompt) (mode))': 'Ingest a PDF (disk path, http(s) URL or base64 data URL) and append its content to a chat; per page the backend sends extracted text or a rendered image. mode: auto|text|vision',
+    'load_pdf(source (mode))': 'Synchronously analyse a PDF (disk path, http(s) URL or base64 data URL) and return a list of LLM content parts (text and/or image_url), without touching any chat. mode: auto|text|vision',
+    'getPdfSize()': 'Return the number of stored PDFs (dropped or added by URL/path)',
+    'getPdfValue(idx)': 'Return a stored PDF as a dict {name, src, isUrl}',
+    'getPdfData()': 'Return all stored PDFs as a list of dicts {name, src, isUrl}',
 };
 
 // Extract all function/macro names with descriptions from Initialize tabs
@@ -1283,6 +1288,22 @@ const initDefaultCode_lib3 = `
 (defun pushImageValue(img)
     (integer . evaljs (f_ "pushImageValue(\`{btoa . json img}\`);")))
 
+; ---- PDF store ----
+
+; Return the number of PDFs currently stored (dropped or added by URL/path)
+(defun getPdfSize()
+    (integer . evaljs "getPdfSize();"))
+
+; Return a specific stored PDF as a dictionary {"name":.. "src":.. "isUrl":..}
+; src is a base64 data URL for a dropped local PDF, or an http(s) URL / path
+; reference for a remote one. Pass src to add_pdf_to_prompt for processing.
+(defun getPdfValue(idx)
+    (json_parse (atob . evaljs (f_ "getPdfValue({idx});"))))
+
+; Return all stored PDFs as a list of dictionaries {"name":.. "src":.. "isUrl":..}
+(defun getPdfData()
+    (json_parse (atob . evaljs "getPdfData();")))
+
 ; Register the image at index id_image into the given chat, as a user message,
 ; using the OpenAI multimodal "image_url" format. An optional text prompt is
 ; added as a "text" part alongside the image. Handles both local images
@@ -1414,8 +1435,67 @@ const initDefaultCode_lib5 = `
 (defun eval_code(code)
    (evaljs (+ "evalLispECode(\`" (btoa code) "\`);")))
 
-`;
+; Analyse a PDF and append its content to the given chat as a single user
+; message. 'source' is a disk path, an http(s) URL, or a base64 data URL
+; (e.g. the "src" of a stored/dropped PDF via getPdfValue). The backend decides,
+; page by page, whether to send extracted text or a rendered image (vision),
+; according to 'mode' ("auto" | "text" | "vision", default "auto"). An optional
+; text prompt is added first. Returns the updated chat.
+(defun add_pdf_to_prompt(chat source (prompt) (mode))
+   (if (nullp mode) (setq mode "auto"))
+   (setq spec (dictionary "source" source "kind" "auto" "mode" mode "dpi" 150))
+   (setq res (json_parse (atob (evaljs (f_ "pdf_ingest_sync(\`{btoa . json spec}\`);")))))
+   (if (neq (@ res "status") "success")
+      chat
+      (block
+         (setq content ())
+         (if (and prompt (neq prompt ""))
+            (push content (dictionary "type" "text" "text" prompt))
+         )
+         (setq detail (getImageDetail))
+         (loop item (@ res "items")
+            (if (eq (@ item "kind") "text")
+               (push content (dictionary "type" "text" "text" (@ item "text")))
+               (push content (dictionary "type" "image_url"
+                                         "image_url" (dictionary "url" (@ item "src") "detail" detail)))
+            )
+         )
+         (push chat (dictionary "role" "user" "content" content))
+         chat
+      )
+   )
+)
 
+; Analyse a PDF and return its content as a list of LLM content parts, WITHOUT
+; touching any chat. 'source' is a disk path, an http(s) URL, or a base64 data
+; URL. The backend decides, page by page, whether to return extracted text or a
+; rendered image (vision), according to 'mode' ("auto" | "text" | "vision",
+; default "auto"). The result is a list whose elements are either
+; (dictionary "type" "text" "text" ...) or
+; (dictionary "type" "image_url" "image_url" (dictionary "url" ... "detail" ...)).
+; Returns an empty list on error. This function is synchronous.
+(defun load_pdf(source (mode))
+   (if (nullp mode) (setq mode "auto"))
+   (setq spec (dictionary "source" source "kind" "auto" "mode" mode "dpi" 150))
+   (setq res (json_parse (atob (evaljs (f_ "pdf_ingest_sync(\`{btoa . json spec}\`);")))))
+   (if (neq (@ res "status") "success")
+      ()
+      (block
+         (setq content ())
+         (setq detail (getImageDetail))
+         (loop item (@ res "items")
+            (if (eq (@ item "kind") "text")
+               (push content (dictionary "type" "text" "text" (@ item "text")))
+               (push content (dictionary "type" "image_url"
+                                         "image_url" (dictionary "url" (@ item "src") "detail" detail)))
+            )
+         )
+         content
+      )
+   )
+)
+
+`;
 // Store default code in each lib tab
 allInitContents['lib 0'] = initDefaultCode_lib1.trim();
 allInitContents['lib 1'] = initDefaultCode_lib2.trim();

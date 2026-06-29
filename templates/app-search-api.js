@@ -941,6 +941,30 @@ async function upload_data_to_browser(name, data, directory) {
     }
 }
 
+// Synchronous PDF ingest via the backend (callable from LispE).
+// spec: base64-encoded JSON { source, kind?, mode?, dpi?, max_pages? }
+//   source: a disk path, an http(s) URL, or base64 PDF data (with or without
+//           a "data:" prefix). kind defaults to "auto".
+// Returns base64-encoded JSON: { status, decision, pages, textual_ratio,
+//   items:[{page, kind:'text'|'image', text|src}] } or an error object.
+function pdf_ingest_sync(spec) {
+    try {
+        const payload = JSON.parse(unicodeAtob(spec));
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `${API_BASE_URL}/pdf_ingest`, false);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.send(JSON.stringify(payload));
+        if (xhr.status === 200) {
+            return unicodeBtoa(xhr.responseText);
+        }
+        let msg = `HTTP ${xhr.status}`;
+        try { msg = JSON.parse(xhr.responseText).message || msg; } catch (e) {}
+        return unicodeBtoa(JSON.stringify({ status: 'error', message: msg }));
+    } catch (e) {
+        return unicodeBtoa(JSON.stringify({ status: 'error', message: e.message }));
+    }
+}
+
 // Function to load a file from disk via the backend (synchronous)
 // path: base64-encoded file path
 // Returns the file content as a base64-encoded string

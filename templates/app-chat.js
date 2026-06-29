@@ -1,9 +1,40 @@
+// Ingest a PDF (by source: data URL, http(s) URL or disk path) through the
+// backend /pdf_ingest endpoint and turn the result into OpenAI-style content
+// parts (text and/or image_url). The backend decides, page by page, whether to
+// return extracted text or a rendered page image. Returns [] on failure.
+function ingestPdfToParts(source) {
+    if (typeof pdf_ingest_sync !== 'function' || !source) return [];
+    try {
+        const spec = { source: source, kind: 'auto', mode: 'auto', dpi: 150 };
+        const res = JSON.parse(unicodeAtob(pdf_ingest_sync(unicodeBtoa(JSON.stringify(spec)))));
+        if (!res || res.status !== 'success' || !Array.isArray(res.items)) {
+            if (res && res.message && typeof displayError === 'function') {
+                displayError('PDF ingest error: ' + res.message);
+            }
+            return [];
+        }
+        const detail = (typeof getImageDetail === 'function') ? getImageDetail() : 'auto';
+        const parts = [];
+        res.items.forEach(it => {
+            if (it.kind === 'text' && it.text) {
+                parts.push({ type: 'text', text: it.text });
+            } else if (it.kind === 'image' && it.src) {
+                parts.push({ type: 'image_url', image_url: { url: it.src, detail: detail } });
+            }
+        });
+        return parts;
+    } catch (e) {
+        if (typeof displayError === 'function') displayError('PDF ingest error: ' + e.message);
+        return [];
+    }
+}
+
 sendMessageButton.addEventListener('click', async () => {
     const userMessage = chatInput.value.trim();
 
     const hasPendingImages = (typeof getPendingImagesCount === 'function') && getPendingImagesCount() > 0;
-    if (!userMessage && !hasPendingImages) return; // Ne rien faire si message ET images vides
-    const history = chatHistory[currentChatTab] || [];
+    const hasPendingPdfs = (typeof getPendingPdfsCount === 'function') && getPendingPdfsCount() > 0;
+    if (!userMessage && !hasPendingImages && !hasPendingPdfs) return; // Ne rien faire si message, images ET pdf vides    const history = chatHistory[currentChatTab] || [];
     if (history.length > 1) {
         const msg = history.at(-1);
         if (msg.sender === "user" && !(Array.isArray(msg.images) && msg.images.length > 0)) {
@@ -35,6 +66,13 @@ sendMessageButton.addEventListener('click', async () => {
 
     // Detach any images staged via drag & drop so they are bound to this message
     const pendingImages = (typeof takePendingImages === 'function') ? takePendingImages() : [];
+    // Detach any PDFs staged via drag & drop and ingest them now (the backend
+    // decides, page by page, whether to send extracted text or a rendered image).
+    const pendingPdfs = (typeof takePendingPdfs === 'function') ? takePendingPdfs() : [];
+    let pdfParts = [];
+    pendingPdfs.forEach(p => {
+        if (p && p.src) pdfParts = pdfParts.concat(ingestPdfToParts(p.src));
+    });
     addMessage(userMessage, 'user', undefined, pendingImages); // Ajoute le message de l'utilisateur
     if (!chatHistory[currentChatTab]) chatHistory[currentChatTab] = [];
     const userEntry = {
@@ -42,6 +80,7 @@ sendMessageButton.addEventListener('click', async () => {
         text: userMessage
     };
     if (pendingImages.length > 0) userEntry.images = pendingImages;
+    if (pdfParts.length > 0) userEntry.pdfParts = pdfParts;
     chatHistory[currentChatTab].push(userEntry); // Add to chat history
     markSessionModified();
     autoSaveCurrentChatSession(); // Automatic session save
@@ -53,13 +92,18 @@ sendMessageButton.addEventListener('click', async () => {
     // Subsequent Sends: call chat with prompt and chat history as JSON
     const formattedHistory = (chatHistory[currentChatTab] || [])
         .map(msg => {
-            if (Array.isArray(msg.images) && msg.images.length > 0) {
+            const hasImages = Array.isArray(msg.images) && msg.images.length > 0;
+            const hasPdf = Array.isArray(msg.pdfParts) && msg.pdfParts.length > 0;
+            if (hasImages || hasPdf) {
                 const parts = [];
                 if (msg.text && msg.text.trim()) parts.push({ type: 'text', text: msg.text });
-                const detail = (typeof getImageDetail === 'function') ? getImageDetail() : 'auto';
-                msg.images.forEach(im => {
-                    if (im && im.src) parts.push({ type: 'image_url', image_url: { url: im.src, detail: detail } });
-                });
+                if (hasImages) {
+                    const detail = (typeof getImageDetail === 'function') ? getImageDetail() : 'auto';
+                    msg.images.forEach(im => {
+                        if (im && im.src) parts.push({ type: 'image_url', image_url: { url: im.src, detail: detail } });
+                    });
+                }
+                if (hasPdf) msg.pdfParts.forEach(p => parts.push(p));
                 return { role: msg.sender, content: parts };
             }
             return { role: msg.sender, content: msg.text };

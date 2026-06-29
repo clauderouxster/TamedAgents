@@ -33,7 +33,7 @@ The key idea behind Tamed Agents is that **agent behavior is defined in code** (
 ### Python Dependencies
 
 ```bash
-pip install fastapi uvicorn requests fastmcp duckduckgo-search feedparser
+pip install fastapi uvicorn requests fastmcp duckduckgo-search feedparser pymupdf
 ```
 
 | Package | Purpose |
@@ -44,14 +44,13 @@ pip install fastapi uvicorn requests fastmcp duckduckgo-search feedparser
 | `fastmcp` | Client used by the MCP connector proxy |
 | `duckduckgo-search` | Optional, used by the built-in web search tool |
 | `feedparser` | Parses RSS/Atom feeds for the `/fetch_feed` endpoint |
+| `pymupdf` | Optional, used by the `/pdf_ingest` endpoint (PDF text extraction & page rendering) |
 
 ### WebAssembly Runtime
 
 The LispE interpreter is compiled to WebAssembly and shipped as `lispe/lispe.js` + `lispe/lispe.wasm`. No additional installation is needed — the browser loads them automatically.
-The LispE interpreter code is [available here](https://github.com/naver/lispe)
 
 ---
-
 
 ## Running the Application
 
@@ -429,6 +428,7 @@ PREDIBAG/
 | Problem | Solution |
 |---------|----------|
 | `ModuleNotFoundError` on startup | Run `pip install fastapi uvicorn requests fastmcp` |
+| `PyMuPDF is not installed` on PDF ingest | Run `pip install pymupdf` |
 | Connection error to LLM server | Verify the server is running and the host URL is correct in Settings |
 | Model not found | Ensure the model is loaded / available on your LLM server |
 | No models in dropdown | Click **Set** next to the LLM Server selector to refresh the connection |

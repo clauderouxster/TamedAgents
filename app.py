@@ -1257,6 +1257,122 @@ async def store_data(request: Request):
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
+@app.post('/pdf_ingest')
+async def pdf_ingest(request: Request):
+    """Analyse un PDF (chemin disque, URL http(s) ou données base64) et renvoie,
+    page par page, soit le texte extrait, soit une image (rendu PNG de la page)
+    pour traitement par un modèle de vision.
+
+    Corps JSON attendu :
+        source    : chemin, URL, ou données base64 (avec ou sans préfixe data:)
+        kind      : 'auto' (défaut) | 'path' | 'url' | 'data'
+        mode      : 'auto' (défaut) | 'text' | 'vision'
+        dpi       : résolution du rendu image (défaut 150)
+        max_pages : nombre maximum de pages traitées (0 = sans limite)
+
+    En mode 'auto', la décision text/vision/mixed dépend de la densité de texte
+    par page (un PDF majoritairement textuel -> text, majoritairement scanné ->
+    vision, sinon -> mixed, décidé page par page).
+    """
+    data = await request.json()
+    source = data.get('source', '')
+    kind = data.get('kind', 'auto')
+    mode = data.get('mode', 'auto')
+    try:
+        dpi = int(data.get('dpi', 150))
+    except (TypeError, ValueError):
+        dpi = 150
+    try:
+        max_pages = int(data.get('max_pages', 0))
+    except (TypeError, ValueError):
+        max_pages = 0
+
+    if not source:
+        return JSONResponse({"status": "error", "message": "No source provided"}, status_code=400)
+
+    try:
+        import fitz  # PyMuPDF
+    except Exception:
+        return JSONResponse({"status": "error",
+                             "message": "PyMuPDF is not installed. Run: pip install pymupdf"},
+                            status_code=500)
+
+    import base64 as _b64
+
+    # Resolve the kind when 'auto'
+    if kind == 'auto':
+        s = source.strip()
+        if s.startswith('http://') or s.startswith('https://'):
+            kind = 'url'
+        elif s.startswith('data:'):
+            kind = 'data'
+        elif len(s) > 1024 and '\n' not in s and ' ' not in s:
+            kind = 'data'
+        else:
+            kind = 'path'
+
+    raw = None
+    try:
+        if kind == 'url':
+            resp = requests.get(source, timeout=30)
+            resp.raise_for_status()
+            raw = resp.content
+        elif kind == 'data':
+            s = source
+            if s.startswith('data:'):
+                s = s.split(',', 1)[1]
+            raw = _b64.b64decode(s)
+        else:  # path
+            p = os.path.realpath(os.path.expanduser(source))
+            with open(p, 'rb') as f:
+                raw = f.read()
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": f"Cannot read PDF: {e}"}, status_code=400)
+
+    try:
+        doc = fitz.open(stream=raw, filetype="pdf")
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": f"Invalid PDF: {e}"}, status_code=400)
+
+    n = doc.page_count
+    if max_pages and max_pages > 0:
+        n = min(n, max_pages)
+
+    page_text = []
+    for i in range(n):
+        txt = doc[i].get_text("text")
+        page_text.append(txt)
+
+    textual = sum(1 for t in page_text if len(t.strip()) >= 100)
+    ratio = (textual / n) if n else 0.0
+
+    decision = mode
+    if mode == 'auto':
+        if ratio >= 0.7:
+            decision = 'text'
+        elif ratio <= 0.3:
+            decision = 'vision'
+        else:
+            decision = 'mixed'
+
+    items = []
+    for i in range(n):
+        use_text = (decision == 'text') or (decision == 'mixed' and len(page_text[i].strip()) >= 100)
+        if use_text:
+            items.append({"page": i, "kind": "text", "text": page_text[i]})
+        else:
+            try:
+                pix = doc[i].get_pixmap(dpi=dpi)
+                png = pix.tobytes("png")
+                url = "data:image/png;base64," + _b64.b64encode(png).decode()
+                items.append({"page": i, "kind": "image", "src": url})
+            except Exception as e:
+                items.append({"page": i, "kind": "text", "text": page_text[i] or f"[page {i}: render error: {e}]"})
+
+    doc.close()
+    return {"status": "success", "decision": decision, "pages": n,
+            "textual_ratio": ratio, "items": items}
+
 @app.post('/store_session')
 async def store_session(request: Request):
     """Endpoint pour sauvegarder une session sur le disque à un chemin donné."""

@@ -28,6 +28,25 @@ def get_key():
 def set_key(key):
     pass
 
+def _extract_error_detail(response):
+    """Extrait le message d'erreur renvoyé par LM Studio dans le corps de la réponse.
+
+    LM Studio (compatible OpenAI) renvoie les erreurs sous la forme
+    {"error": "..."} ou {"error": {"message": "..."}}. Cette fonction tente
+    d'en extraire un texte lisible, sinon retourne le corps brut.
+    """
+    try:
+        data = response.json()
+    except (ValueError, AttributeError):
+        try:
+            return (response.text or "").strip()
+        except Exception:
+            return ""
+    err = data.get("error", data) if isinstance(data, dict) else data
+    if isinstance(err, dict):
+        return err.get("message") or err.get("error") or json.dumps(err)
+    return str(err)
+
 # The call_llm function is adapted for LM Studio's chat completions endpoint.
 def call_llm(model, system_prompt, prompt):
     """
@@ -73,6 +92,12 @@ def call_llm(model, system_prompt, prompt):
                         
                 except json.JSONDecodeError:
                     continue
+    except requests.exceptions.HTTPError as e:
+        detail = _extract_error_detail(e.response)
+        status = e.response.status_code if e.response is not None else "?"
+        message = f"Erreur LM Studio (HTTP {status}): {detail}" if detail else str(e)
+        print(message)
+        raise RuntimeError(message) from e
     except requests.exceptions.RequestException as e:
         print(f"Erreur de connexion au serveur LM Studio (call_llm): {e}")
         raise # Relance l'exception pour que Flask puisse la gérer
@@ -140,12 +165,23 @@ def call_llm_chat(model, messages, tools=None, llm_params=None, host=None, api_k
                     else:
                         continue
 
+                    if isinstance(chunk, dict) and chunk.get('error'):
+                        err = chunk['error']
+                        msg = err.get('message') if isinstance(err, dict) else str(err)
+                        raise RuntimeError(f"Erreur LM Studio: {msg}")
+
                     if 'choices' in chunk and len(chunk['choices']) > 0 and 'delta' in chunk['choices'][0] and 'content' in chunk['choices'][0]['delta']:
                         content = chunk['choices'][0]['delta']['content']
                         yield content # Génère le contenu pour le streaming
                         
                 except json.JSONDecodeError:
                     continue
+    except requests.exceptions.HTTPError as e:
+        detail = _extract_error_detail(e.response)
+        status = e.response.status_code if e.response is not None else "?"
+        message = f"Erreur LM Studio (HTTP {status}): {detail}" if detail else str(e)
+        print(message)
+        raise RuntimeError(message) from e
     except requests.exceptions.RequestException as e:
         print(f"Erreur de connexion au serveur LM Studio (call_llm_chat): {e}")
         raise # Relance l'exception pour que Flask puisse la gérer
