@@ -17,12 +17,24 @@ let imageItems = [];
 // kind is 'image' (default) or 'pdf'. For a PDF, src is a base64 data URL
 // (local file) or an http(s) URL / path (remote); the gallery shows a document
 // chip instead of a thumbnail.
+// If an item with the same name and kind already exists, it is not duplicated:
+// its src is refreshed and its existing index is returned.
 function addImageItem(name, src, isUrl, kind) {
+    const theKind = (kind === 'pdf') ? 'pdf' : 'image';
+    const theName = name || `image_${imageItems.length}`;
+    const existing = imageItems.findIndex(it => it.name === theName && (it.kind || 'image') === theKind);
+    if (existing !== -1) {
+        imageItems[existing].src = src;
+        imageItems[existing].isUrl = !!isUrl;
+        renderImagesGallery();
+        if (typeof markSessionModified === 'function') markSessionModified();
+        return existing;
+    }
     imageItems.push({
-        name: name || `image_${imageItems.length}`,
+        name: theName,
         src: src,
         isUrl: !!isUrl,
-        kind: (kind === 'pdf') ? 'pdf' : 'image'
+        kind: theKind
     });
     renderImagesGallery();
     if (typeof markSessionModified === 'function') markSessionModified();

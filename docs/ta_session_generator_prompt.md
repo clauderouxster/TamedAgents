@@ -567,6 +567,24 @@ defjs on_mcp(data):
 
 Also accessible as globals: `theuserdata[idx]`, `theprompts`, `theskills`, `thetools`.
 
+### Images & PDFs (multimodal)
+
+The **Images** panel (Data group) is a single gallery that stores both images and PDFs. Each entry has a 0-based index and a `name`; adding an image or a PDF whose `name` already exists (for the same kind) refreshes that entry instead of creating a duplicate.
+
+| Function | Purpose |
+|----------|---------|
+| `getImageSize()` | Number of images in the gallery |
+| `getImageValue(idx)` | Image `idx` as `{name, src, isUrl}` (`src` = data URL or http URL) |
+| `getImageData()` | All images as a list of `{name, src, isUrl}` |
+| `add_image_to_chat(chat, id_image, prompt?)` | Inject gallery image `id_image` into `chat` as a user message, optionally bundling a text `prompt` |
+| `getPdfSize()` | Number of stored PDFs |
+| `getPdfValue(idx)` | Stored PDF `idx` as `{name, src, isUrl}` |
+| `getPdfData()` | All stored PDFs as a list of `{name, src, isUrl}` |
+| `add_pdf_to_prompt(chat, source, prompt?, mode?)` | Ingest a PDF (disk path, http(s) URL or base64 data URL) and append its content to `chat`; per page the backend sends extracted text or a rendered image. `mode` = `auto` (default) / `text` / `vision` |
+| `load_pdf(source, mode?)` | Synchronously analyse a PDF and **return** a list of LLM content parts (`{type:"text",...}` and/or `{type:"image_url",...}`) without touching any chat. `mode` = `auto` / `text` / `vision` |
+
+PDF ingestion uses the backend `/pdf_ingest` endpoint (PyMuPDF). In `text` mode each page's extracted text is sent; in `vision` mode each page is rendered to an image; `auto` decides per page (text when a page carries enough selectable text, image otherwise).
+
 ### Web & External
 
 | Function | Purpose |

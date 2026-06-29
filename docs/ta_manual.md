@@ -731,6 +731,24 @@ The user can open Chat 0, type `Go 1`, switch to Chat 1, type `Go 2`, switch to 
 | `setOutputData(list)` | Set all Output tabs at once |
 | `setUserData(list)` | Set all User Data tabs at once |
 
+### Images & PDFs (multimodal)
+
+The **Images** panel stores both images and PDFs in one gallery. Each entry has a 0-based index and a `name`; re-adding an item with an existing `name` (same kind) refreshes it instead of duplicating it.
+
+| Function | Description |
+|----------|-------------|
+| `getImageSize()` | Number of images in the gallery |
+| `getImageValue(idx)` | Image `idx` as `{name, src, isUrl}` (`src` = data URL or http URL) |
+| `getImageData()` | All images as a list of `{name, src, isUrl}` |
+| `add_image_to_chat(chat, id_image, prompt?)` | Inject gallery image `id_image` into `chat` as a user message, with an optional text `prompt` |
+| `getPdfSize()` | Number of stored PDFs |
+| `getPdfValue(idx)` | Stored PDF `idx` as `{name, src, isUrl}` |
+| `getPdfData()` | All stored PDFs as a list of `{name, src, isUrl}` |
+| `add_pdf_to_prompt(chat, source, prompt?, mode?)` | Ingest a PDF (disk path, http(s) URL or base64 data URL) and append its content to `chat`; per page the backend sends extracted text or a rendered page image. `mode` = `auto` / `text` / `vision` |
+| `load_pdf(source, mode?)` | Synchronously analyse a PDF and **return** a list of LLM content parts (text and/or `image_url`) without touching any chat. `mode` = `auto` / `text` / `vision` |
+
+PDFs are ingested through the backend `/pdf_ingest` endpoint (PyMuPDF): `text` sends each page's extracted text, `vision` renders each page to an image, and `auto` chooses per page.
+
 ### Web & External
 
 | Function | Description |

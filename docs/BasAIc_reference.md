@@ -710,6 +710,24 @@ When BasAIc is used inside PREDIBAG (Tamed Agents), the following functions are 
 | `setOutputData(list)` | Set all Output tabs at once from a list |
 | `pushOutputDataValue(val)` | Add a new Output tab with the given value, returns tab name |
 
+### Images & PDFs (multimodal)
+
+The **Images** panel is a single gallery holding both images and PDFs. Each entry has a 0-based index and a `name`; re-adding an item with an existing `name` (same kind) refreshes it rather than creating a duplicate.
+
+| BasAIc | Description |
+|---|---|
+| `getImageSize()` | Return the number of images in the gallery |
+| `getImageValue(idx)` | Return image `idx` as `{name, src, isUrl}` (`src` = data URL or http URL) |
+| `getImageData()` | Return all images as a list of `{name, src, isUrl}` |
+| `add_image_to_chat(chat, id_image, prompt?)` | Inject gallery image `id_image` into `chat` as a user message, with an optional text `prompt` |
+| `getPdfSize()` | Return the number of stored PDFs |
+| `getPdfValue(idx)` | Return stored PDF `idx` as `{name, src, isUrl}` |
+| `getPdfData()` | Return all stored PDFs as a list of `{name, src, isUrl}` |
+| `add_pdf_to_prompt(chat, source, prompt?, mode?)` | Ingest a PDF (disk path, http(s) URL or base64 data URL) and append its content to `chat`; per page the backend sends extracted text or a rendered page image. `mode` = `auto` / `text` / `vision` |
+| `load_pdf(source, mode?)` | Synchronously analyse a PDF and return a list of LLM content parts (text and/or `image_url`) without touching any chat. `mode` = `auto` / `text` / `vision` |
+
+PDF ingestion relies on the backend `/pdf_ingest` endpoint (PyMuPDF): `text` extracts page text, `vision` renders each page to an image, `auto` decides per page.
+
 ### Web & External
 
 | BasAIc | Description |

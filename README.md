@@ -334,11 +334,24 @@ Multi-tab textarea editor used by the agent code (and by you) as a scratchpad fo
 
 #### Images
 
-A gallery for managing images that can be attached to multimodal conversations.
-- Add images via **Load** (local files), **🌐 URL** (remote address), or by **drag & drop**: dropping onto the gallery only stores the image; dropping onto the message box also attaches it to your next message while you keep typing.
-- Each image is referenced by a 0-based index shown on its card (`#0`, `#1`, …).
+A gallery for managing images **and PDFs** that can be attached to multimodal conversations. Images and PDFs share the same gallery, each identified by a 0-based index and a name; re-adding an item whose name already exists (for the same kind) refreshes that entry instead of creating a duplicate.
+
+- Add images via **Load** (local files), **🌐 URL** (remote address), or by **drag & drop**: dropping onto the gallery only stores the file; dropping onto the message box also attaches it to your next message while you keep typing.
+- Drop a **PDF** (file or URL) to store it in the same gallery; PDF cards show a 📄 icon instead of a thumbnail.
+- Each item is referenced by a 0-based index shown on its card (`#0`, `#1`, …).
 - The **Image Quality** setting (see Settings) controls the `detail` level (`auto`, `low`, `high`) sent to the LLM for every image.
-- Agents can inject an image programmatically with `add_image_to_chat(chat, id_image, (prompt))`, optionally bundling a text prompt with the image.
+
+Agents can manipulate gallery content programmatically:
+
+| Function | Purpose |
+|----------|---------|
+| `getImageSize()` / `getImageValue(idx)` / `getImageData()` | Inspect stored images (`{name, src, isUrl}`) |
+| `add_image_to_chat(chat, id_image, prompt?)` | Inject image `id_image` into a chat as a user message, optionally bundling a text prompt |
+| `getPdfSize()` / `getPdfValue(idx)` / `getPdfData()` | Inspect stored PDFs (`{name, src, isUrl}`) |
+| `add_pdf_to_prompt(chat, source, prompt?, mode?)` | Ingest a PDF (disk path, http(s) URL or base64 data URL) and append its content to a chat. Per page the backend sends extracted text or a rendered image. `mode` = `auto` / `text` / `vision` |
+| `load_pdf(source, mode?)` | Synchronously analyse a PDF and **return** a list of LLM content parts (text and/or `image_url`) without touching any chat |
+
+PDF ingestion is handled by the backend `/pdf_ingest` endpoint (PyMuPDF): `text` extracts each page's selectable text, `vision` renders each page to an image, and `auto` decides per page.
 
 ---
 
