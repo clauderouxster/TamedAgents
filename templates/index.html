@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tamed Agents</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.2/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    <!-- Prism.js pour coloration syntaxique Python -->
+    <link href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-python.min.js"></script>
+    <!-- CodeMirror for Agents section (Scheme syntax highlighting) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/scheme/scheme.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+    <!-- CodeMirror search addons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/dialog/dialog.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/dialog/dialog.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/search/searchcursor.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/search/search.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/search/jump-to-line.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/display/placeholder.min.js"></script>
+    <!-- CodeMirror show-hint addon for autocomplete -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.js"></script>
+    <script type="text/javascript">
+        // =============================================
+        // Custom CodeMirror mode for Basic-like language
+        // =============================================
+        CodeMirror.defineMode('basic', function() {
+            const keywords = new Set([
+                'function', 'endfunction', 'rule', 'endrule', 'def', 'enddef',
+                'functionjs', 'endfunctionjs', 'rulejs', 'endrulejs', 'defjs', 'enddefjs',
+                'if', 'then', 'else', 'endif',
+                'for', 'endfor', 'while', 'endwhile',
+                'in', 'var', 'data', 'enddata',
+                'and', 'or', 'xor', 'not',
+                'return', 'lambda'
+            ]);
+            const types = new Set([
+                'list', 'dictionary', 'integers', 'floats',
+                'strings', 'string', 'integer', 'float', 'boolean'
+            ]);
+            const builtins = new Set([
+                'println', 'print', 'type', 'size', 'push', 'pop',
+                'split', 'join', 'find', 'replace', 'trim', 'lower', 'upper',
+                'json_parse', 'json', 'atob', 'btoa', 'name',
+                'range', 'map', 'filter', 'sort', 'reverse',
+                'abs', 'sqrt', 'pow', 'min', 'max', 'mod',
+                'callchat', 'callchatsilent', 'calltool',
+                'callchatserver', 'callchatserversilent',
+                'execute_when', 'read_input', 'push_message',
+                'jsjson', 'jschat', 'convertjs',
+                'clean_display', 'save_session', 'python',
+                'display_page', 'getconfidential', 'getsecret'
+            ]);
+            const operators = /^(?:[+\-*\/]=|[<>!=]=?|<>|[+\-*\/%.^&|~]|:)/;
+
+            return {
+                startState: function() { return { inString: false }; },
+                token: function(stream, state) {
+                    // Whitespace
+                    if (stream.eatSpace()) return null;
+
+                    // REM comment (case-insensitive, at start of a token context)
+                    if (stream.sol() && stream.match(/^rem\b/i)) {
+                        stream.skipToEnd();
+                        return 'comment';
+                    }
+
+                    // Inline comment with //
+                    if (stream.match('//')) {
+                        stream.skipToEnd();
+                        return 'comment';
+                    }
+
+                    // Strings
+                    if (stream.peek() === '"') {
+                        stream.next(); // eat opening quote
+                        while (!stream.eol()) {
+                            var ch = stream.next();
+                            if (ch === '\\') { stream.next(); continue; }
+                            if (ch === '"') break;
+                        }
+                        return 'string';
+                    }
+
+                    // Numbers (hex, float, int)
+                    if (stream.match(/^0x[0-9a-fA-F]+/) || stream.match(/^[0-9]+\.?[0-9]*(?:[eE][+\-]?[0-9]+)?/)) {
+                        return 'number';
+                    }
+
+                    // Operators
+                    if (stream.match(operators)) {
+                        return 'operator';
+                    }
+
+                    // Brackets, parens, commas
+                    var ch = stream.peek();
+                    if ('()[]{},.'.indexOf(ch) !== -1) {
+                        stream.next();
+                        return 'bracket';
+                    }
+
+                    // Words (identifiers, keywords, builtins)
+                    if (stream.match(/^[a-zA-Z_][a-zA-Z0-9_]*/)) {
+                        var word = stream.current().toLowerCase();
+                        if (keywords.has(word)) return 'keyword';
+                        if (types.has(word)) return 'type';
+                        if (builtins.has(word)) return 'builtin';
+                        return 'variable';
+                    }
+
+                    // Eat one character if nothing matched
+                    stream.next();
+                    return null;
+                }
+            };
+        });
+    </script>
+    <script type="text/javascript">
+        // Flag to mirror print/printErr output to the console
+        var mirrorPrintToConsole = false;
+        // Capture print and printErr from WASM Module into the Display section
+        var Module = {
+            preRun: [],
+            postRun: [],
+            print: (function () {
+                return function (text) {
+                    if (arguments.length > 1)
+                        text = Array.prototype.slice.call(arguments).join(' ');
+                    var element = document.getElementById('displayOutput');
+                    if (element) {
+                        // Clear the placeholder on first print
+                        if (element.querySelector('p.text-gray-400')) element.innerHTML = '';
+                        element.textContent += text + "\n";
+                        element.scrollTop = element.scrollHeight;
+                    }
+                    if (mirrorPrintToConsole) {
+                        var consoleEl = document.getElementById('consoleOutputContainer');
+                        if (consoleEl) {
+                            var line = document.createElement('div');
+                            line.className = 'console-line-result';
+                            line.textContent = text;
+                            consoleEl.appendChild(line);
+                            consoleEl.scrollTop = consoleEl.scrollHeight;
+                        }
+                    }
+                };
+            })()
+            ,
+            printErr: (function () {
+                return function (text) {
+                    if (arguments.length > 1)
+                        text = Array.prototype.slice.call(arguments).join(' ');
+                    console.log(text);
+                    var element = document.getElementById('displayOutput');
+                    if (element) {
+                        if (element.querySelector('p.text-gray-400')) element.innerHTML = '';
+                        element.textContent += text + "\n";
+                        element.scrollTop = element.scrollHeight;
+                    }
+                    if (mirrorPrintToConsole) {
+                        var consoleEl = document.getElementById('consoleOutputContainer');
+                        if (consoleEl) {
+                            var line = document.createElement('div');
+                            line.className = 'console-line-error';
+                            line.textContent = text;
+                            consoleEl.appendChild(line);
+                            consoleEl.scrollTop = consoleEl.scrollHeight;
+                        }
+                    }
+                };
+            })()
+        };
+    </script>
+    <script async type="text/javascript" src="../lispe/lispe.js"></script>
+    <script async type="text/javascript" src="../lispe/lispe_functions.js"></script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+
+<body>
+    <!-- Save flash notification -->
+    <div id="saveFlashNotif"></div>
+    <!-- ===== LEFT SIDEBAR ===== -->
+    <aside id="leftSidebar">
+        <div id="sidebarResizeHandle"></div>
+        <div class="sidebar-header" style="display:flex;align-items:center;gap:8px;">
+            <button id="newSessionButton" class="sidebar-new-btn" style="flex:1;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                New Session
+            </button>
+            <button id="sidebarMenuButton" class="sidebar-action-btn" style="flex:none;padding:8px 10px;font-size:16px;" title="Session actions">☰</button>
+        </div>
+        <!-- Dropdown menu (hidden by default) -->
+        <div id="sidebarDropdownMenu" class="sidebar-dropdown-menu" style="display:none;">
+            <div class="sidebar-dropdown-section-label">Create</div>
+            <button id="templateSessionButton" class="sidebar-dropdown-item">📋 Template</button>
+            <div class="sidebar-dropdown-divider"></div>
+            <div class="sidebar-dropdown-section-label">Import / Export</div>
+            <button id="sidebarDumpButton" class="sidebar-dropdown-item">📦 Store sessions</button>
+            <button id="loadDumpButton" class="sidebar-dropdown-item">📂 Load sessions</button>
+            <div class="sidebar-dropdown-divider"></div>
+            <div class="sidebar-dropdown-section-label">Archive</div>
+            <button id="archiveButton" class="sidebar-dropdown-item">🗃️ Archive</button>
+            <button id="restoreArchiveButton" class="sidebar-dropdown-item">📥 Restore</button>
+            <div class="sidebar-dropdown-divider"></div>
+            <div class="sidebar-dropdown-section-label">Organisation</div>
+            <button id="newFolderButton" class="sidebar-dropdown-item">📁 New folder</button>
+            <button id="moveSessionButton" class="sidebar-dropdown-item">↪️ Move to folder</button>
+            <button id="renameSessionButton" class="sidebar-dropdown-item">✏️ Rename</button>
+            <div class="sidebar-dropdown-divider"></div>
+            <div class="sidebar-dropdown-section-label" style="color:var(--danger);">Danger</div>
+            <button id="removeSessionButton" class="sidebar-dropdown-item" style="color:var(--danger);">🗑️ Remove sessions</button>
+            <button id="sidebarResetButton" class="sidebar-dropdown-item" style="color:var(--danger);">🗑️ Reset all</button>
+            <button id="undoDeleteSessionButton" class="sidebar-dropdown-item" style="display:none;color:var(--accent);">↩️ Undo delete</button>
+        </div>
+        <div class="session-list">
+            <div style="display:flex;align-items:center;gap:4px;padding:0 12px 4px;">
+                <span id="modifiedBadgeSidebar" class="session-modified-badge" title="Session modified, not saved"></span>
+                <span id="modifiedTextSidebar" class="session-modified-text">modified</span>
+            </div>
+            <div id="sessionTreeView" class="session-tree-view"></div>
+            <!-- Hidden select kept for minimal backward compatibility -->
+            <select id="sessionSelect" size="1" style="display:none;">
+                <option value="">Select a saved session</option>
+            </select>
+        </div>
+        <div style="padding:8px 12px;">
+            <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-secondary);margin-bottom:4px;display:block;">LLM Server</label>
+            <select id="sidebarLlmServerSelect" class="dark-select" style="width:100%;font-size:13px;">
+                <option value="vllm">vLLM</option>
+                <option value="ollama">Ollama</option>
+                <option value="lmstudio">LM Studio</option>
+                <option value="claude">Claude (Anthropic)</option>
+                <option value="openai">OpenAI</option>
+                <option value="mistral">Mistral</option>
+            </select>
+        </div>
+    </aside>
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <div id="mainContent">
+        <!-- TOP BAR -->
+        <div class="top-bar">
+            <div class="top-bar-left">
+                <button id="toggleLeftSidebar" class="sidebar-toggle-btn" title="Toggle sidebar">☰</button>
+                <span class="app-title">Tamed Agents</span>
+                <button id="appHelpBtn" class="help-btn" title="Interface overview" style="margin-left:6px;">?</button>
+                <span id="topBarSessionName" class="top-bar-session-name"></span>
+                <span id="modifiedBadgeBottom" class="session-modified-badge" title="Session modified, not saved"></span>
+            </div>
+            <div class="top-bar-center">
+                <button id="stopButton" title="Stop execution" style="background:none;border:none;cursor:pointer;padding:2px 6px;line-height:1;display:flex;align-items:center;"><svg width="28" height="28" viewBox="0 0 100 100"><polygon points="50,2 85,15 98,50 85,85 50,98 15,85 2,50 15,15" fill="#222" stroke="none"/><polygon points="50,6 82,18 94,50 82,82 50,94 18,82 6,50 18,18" fill="#cc0000" stroke="none"/><polygon points="50,14 76,24 86,50 76,76 50,86 24,76 14,50 24,24" fill="white" stroke="none"/><polygon points="50,18 73,27 82,50 73,73 50,82 27,73 18,50 27,27" fill="#cc0000" stroke="none"/><text x="50" y="56" text-anchor="middle" font-size="26" font-weight="bold" fill="white" font-family="Arial,sans-serif">STOP</text></svg></button>
+            </div>
+            <div class="top-bar-right">
+                <button id="createSessionButton" class="panel-trigger-btn" disabled title="Save current session">💾 Save</button>
+                <button id="themeToggleBtn" class="panel-trigger-btn" title="Toggle dark/light mode">🌗 Dark</button>
+                <button id="toggleDisplayZone" class="panel-trigger-btn" title="Toggle display zone">🖼️ Display</button>
+                <button id="toggleRecapZone" class="panel-trigger-btn" title="Session overview (prompts, skills, tools, data, agents)">👁️ Overview</button>
+                <button class="panel-trigger-btn right-panel-tab" data-panel="panelSettings" title="Settings">⚙️ Settings</button>
+                <button class="panel-group-btn" data-group="prompts" title="Prompts, Skills, Tools, Connectors">📝 Prompts</button>
+                <button class="panel-group-btn" data-group="code" title="Agents, Console, Base">💻 Code</button>
+                <button class="panel-group-btn" data-group="data" title="User Data, Output, Images">📊 Data</button>
+            </div>
+        </div>
+
+        <!-- PERMANENT DISPLAY ZONE (top-right, behind right panel) -->
+        <div id="displayZone">
+            <!-- Resize handles: edges -->
+            <div class="dz-resize dz-resize-n" data-resize="n"></div>
+            <div class="dz-resize dz-resize-s" data-resize="s"></div>
+            <div class="dz-resize dz-resize-w" data-resize="w"></div>
+            <div class="dz-resize dz-resize-e" data-resize="e"></div>
+            <!-- Resize handles: corners -->
+            <div class="dz-resize dz-resize-nw" data-resize="nw"></div>
+            <div class="dz-resize dz-resize-ne" data-resize="ne"></div>
+            <div class="dz-resize dz-resize-sw" data-resize="sw"></div>
+            <div class="dz-resize dz-resize-se" data-resize="se"></div>
+            <div class="display-zone-header">
+                <span class="display-zone-title">Display</span>
+                <div style="display:flex;align-items:center;gap:4px;">
+                    <button id="searchDisplayButton" class="dark-btn-secondary" style="font-size:10px;padding:3px 8px;">🔍</button>
+                    <button id="copyDisplayButton" class="dark-btn-secondary" style="font-size:10px;padding:3px 8px;" title="Copy to clipboard">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    </button>
+                    <button id="clearDisplayButton" class="dark-btn-secondary" style="font-size:10px;padding:3px 8px;">Clean</button>
+                    <button id="closeDisplayZoneBtn" class="dark-btn-secondary" style="font-size:10px;padding:3px 6px;" title="Hide display zone">✕</button>
+                </div>
+            </div>
+            <div id="displaySearchBar" style="display:none;padding:4px 8px;background:var(--bg-elevated);border-bottom:1px solid var(--border-color);gap:4px;align-items:center;flex-shrink:0;">
+                <input id="displaySearchInput" type="text" placeholder="Search..." style="flex:1;padding:2px 6px;font-size:11px;border:1px solid var(--border-color);border-radius:4px;background:var(--bg-input);color:var(--text-primary);outline:none;">
+                <span id="displaySearchCount" style="font-size:10px;color:var(--text-muted);min-width:40px;text-align:center;"></span>
+                <button id="displaySearchPrev" class="dark-btn-secondary" style="font-size:10px;padding:2px 6px;">▲</button>
+                <button id="displaySearchNext" class="dark-btn-secondary" style="font-size:10px;padding:2px 6px;">▼</button>
+                <button id="displaySearchClose" class="dark-btn-secondary" style="font-size:10px;padding:2px 6px;">✕</button>
+            </div>
+            <div id="displayOutput">
+                <p class="text-gray-400">Output will appear here.</p>
+            </div>
+        </div>
+
+        <!-- SESSION OVERVIEW ZONE (eye button) -->
+        <div id="recapZone" style="display:none;">
+            <div class="recap-zone-header">
+                <span class="recap-zone-title">Session Overview</span>
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <button id="refreshRecapButton" class="dark-btn-secondary" style="font-size:10px;padding:3px 8px;" title="Refresh">↻</button>
+                    <button id="copyRecapButton" class="dark-btn-secondary" style="font-size:10px;padding:3px 8px;" title="Copy a single Python string to clipboard">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    </button>
+                    <button id="closeRecapZoneBtn" class="dark-btn-secondary" style="font-size:10px;padding:3px 6px;" title="Hide overview">✕</button>
+                </div>
+            </div>
+            <div id="recapContent" class="recap-content"></div>
+        </div>
+
+        <!-- CHAT AREA -->
+        <div id="chatSection" class="chat-area">
+            <!-- Chat Tabs -->
+            <div id="chatTabsBar" class="chat-tabs-bar">
+                <button class="chat-tab-btn tab-btn bg-green-200 text-green-900 text-xs px-3 py-1 rounded-t font-semibold" data-chat="Chat 0">Chat 0</button>
+                <button class="chat-tab-btn tab-btn bg-green-100 text-green-900 text-xs px-3 py-1 rounded-t" data-chat="Chat 1">Chat 1</button>
+                <button class="chat-tab-btn tab-btn bg-green-100 text-green-900 text-xs px-3 py-1 rounded-t" data-chat="Chat 2">Chat 2</button>
+                <button class="chat-tab-btn tab-btn bg-green-100 text-green-900 text-xs px-3 py-1 rounded-t" data-chat="Chat 3">Chat 3</button>
+                <button class="chat-tab-btn tab-btn bg-green-100 text-green-900 text-xs px-3 py-1 rounded-t" data-chat="Chat 4">Chat 4</button>
+                <button id="addChatTabButton" class="tab-btn bg-green-50 text-green-700 text-xs px-2 py-1 rounded-t font-bold" title="Add chat tab">+</button>
+            </div>
+
+            <!-- Messages Display -->
+            <div id="messagesDisplay" class="messages-display flex flex-col flex-grow overflow-y-auto p-2 pr-4 rounded-lg"></div>
+
+            <!-- Chat Input -->
+            <div class="chat-input-container">
+                <div id="chatInputResizeHandle" class="chat-input-resize-handle" title="Resize input area"></div>
+                <div id="chatImagePreview" class="chat-image-preview" style="display:none;"></div>
+                <div class="chat-input-wrapper">
+                    <textarea id="chatInput" rows="3" placeholder="Your message here..."></textarea>
+                    <button id="sendMessageButton" class="send-btn" title="Send">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                        <span id="loadingSpinner" class="loading-spinner hidden" style="position:absolute;"></span>
+                    </button>
+                    <input type="file" id="chatFileInput" class="hidden">
+                </div>
+            </div>
+
+            <!-- Actions Bar -->
+            <div class="chat-actions-bar">
+                <button id="undoButton" class="action-btn" title="Undo">▲</button>
+                <button id="redoButton" class="action-btn" title="Redo">▼</button>
+                <button id="cleanCurrentChatButton" class="action-btn" title="Clean current chat content" style="margin-left:6px;font-size:0.85em;color:#ef4444;">🗑</button>
+                <span style="flex:1;"></span>
+                <button id="clearCurrentChatButton" class="action-btn danger" title="Delete current chat tab" style="font-size:0.85em;background:#dc2626;color:white;border-radius:4px;padding:2px 6px;">🗑</button>
+                <button id="copyChatButton" class="action-btn" title="Copy chat">📋 Copy</button>
+                <button id="cleanAllButton" class="action-btn danger" title="Clean All">🧹 Clean All</button>
+                <button id="clearChatButton" class="action-btn danger" title="Reset">🗑️ Reset</button>
+            </div>
+            <!-- Chat resize handle (used by drag-to-resize JS) -->
+            <div id="chatResizeHandle" class="resize-handle" style="display:none;">
+                <span>⋯</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== RIGHT PANEL OVERLAY ===== -->
+    <div id="rightPanelOverlay"></div>
+
+    <!-- ===== RIGHT PANEL ===== -->
+    <aside id="rightPanel">
+        <div id="rpResizeHandle"></div>
+        <div class="right-panel-header">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span class="right-panel-title" id="rightPanelTitle">Settings</span>
+                <button id="rpHelpBtn" class="help-btn" title="Help" style="display:none;">?</button>
+                <button id="rpDocBtn" class="doc-btn" title="Documentation" style="display:none;">Doc</button>
+            </div>
+            <button id="closeRightPanel" class="close-panel-btn">✕</button>
+        </div>
+
+        <div class="right-panel-tabs">
+            <button class="rp-tab-btn" data-rpanel="panelPrompts" data-group="prompts">📝 Prompts</button>
+            <button class="rp-tab-btn" data-rpanel="panelSkills" data-group="prompts">🎯 Skills</button>
+            <button class="rp-tab-btn" data-rpanel="panelTools" data-group="prompts">🔧 Tools</button>
+            <button class="rp-tab-btn" data-rpanel="panelConnectors" data-group="prompts">🔌 Connectors</button>
+            <button class="rp-tab-btn" data-rpanel="panelAgents" data-group="code">🤖 Agents</button>
+            <button class="rp-tab-btn" data-rpanel="panelConsole" data-group="code">🖥️ Console</button>
+            <button class="rp-tab-btn" data-rpanel="panelInit" data-group="code">⚡ Core</button>
+            <button class="rp-tab-btn" data-rpanel="panelUserData" data-group="data">📊 User Data</button>
+            <button class="rp-tab-btn" data-rpanel="panelOutput" data-group="data">📤 Output</button>
+            <button class="rp-tab-btn" data-rpanel="panelImages" data-group="data">🖼️ Images</button>
+        </div>
+
+        <div class="right-panel-content">
+            <!-- ===== SETTINGS ===== -->
+            <div id="panelSettings" class="panel-section active">
+                <!-- Hidden toggle for JS compatibility -->
+                <button id="toggleSettingsButton"><span id="toggleIcon">▼</span></button>
+                <div id="settingsContent">
+                    <div class="section-group">
+                        <label class="section-label">Host URL</label>
+                        <input type="text" id="hostInput" class="dark-input" value="http://localhost:11434">
+                    </div>
+                    <div class="section-group">
+                        <label class="section-label">Max Tokens</label>
+                        <input type="number" id="maxTokensInput" class="dark-input" value="50000" style="width:120px;">
+                    </div>
+                    <div class="section-group">
+                        <label class="section-label">Image Quality</label>
+                        <select id="imageDetailSelect" class="dark-select" style="width:160px;" title="Detail level sent to the LLM for images">
+                            <option value="auto">Auto</option>
+                            <option value="low">Low (faster, cheaper)</option>
+                            <option value="high">High (more tokens)</option>
+                        </select>
+                    </div>
+                    <div class="section-group">
+                        <label class="section-label">API Key</label>
+                        <input type="password" id="apiKeyInput" class="dark-input" placeholder="Enter your API Key">
+                    </div>
+                    <div class="section-group">
+                        <label class="section-label">Model</label>
+                        <select id="modelNameSelect" class="dark-select">
+                            <option value="">Select a model</option>
+                        </select>
+                    </div>
+                    <div class="section-group">
+                        <label class="section-label">LLM Server</label>
+                        <div style="display:flex;gap:8px;">
+                            <select id="llmServerSelect" class="dark-select">
+                                <option value="vllm">vLLM</option>
+                                <option value="ollama">Ollama</option>
+                                <option value="lmstudio">LM Studio</option>
+                                <option value="claude">Claude (Anthropic)</option>
+                                <option value="openai">OpenAI</option>
+                                <option value="mistral">Mistral</option>
+                            </select>
+                            <button id="setLlmServerButton" class="dark-btn" style="white-space:nowrap;">Set</button>
+                        </div>
+                    </div>
+
+                    <!-- Config snapshot buttons -->
+                    <div class="section-group" style="display:flex;gap:8px;margin-top:8px;">
+                        <button id="saveSettingsSessionButton" class="dark-btn" style="white-space:nowrap;font-size:12px;">💾 Save</button>
+                        <button id="addModelKeyBtn" class="dark-btn" style="white-space:nowrap;font-size:12px;">➕ Add Key</button>
+                        <button id="modelKeysBtn" class="dark-btn" style="white-space:nowrap;font-size:12px;">🔑 Model Keys</button>
+                    </div>
+
+                    <!-- LLM Advanced Parameters (collapsible) -->
+                    <div id="vllmParamsSection" style="display:none;">
+                        <div id="vllmParamsToggle" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:8px 0;user-select:none;">
+                            <span id="vllmParamsArrow" style="font-size:12px;transition:transform 0.2s;">▶</span>
+                            <span style="font-size:13px;font-weight:600;color:var(--text-secondary);">LLM Parameters</span>
+                        </div>
+                        <div id="vllmParamsContent" style="display:none;padding-left:8px;">
+                            <div class="section-group" style="margin-bottom:8px;">
+                                <label class="section-label" style="font-size:11px;">Temperature</label>
+                                <input type="number" id="vllmTemperatureInput" class="dark-input" value="0.7" step="0.1" min="0" max="2" style="width:100px;">
+                            </div>
+                            <div class="section-group" style="margin-bottom:8px;">
+                                <label class="section-label" style="font-size:11px;">Top P</label>
+                                <input type="number" id="vllmTopPInput" class="dark-input" value="0.8" step="0.05" min="0" max="1" style="width:100px;">
+                            </div>
+                            <div id="vllmPresencePenaltyGroup" class="section-group" style="margin-bottom:8px;">
+                                <label class="section-label" style="font-size:11px;">Presence Penalty</label>
+                                <input type="number" id="vllmPresencePenaltyInput" class="dark-input" value="0.2" step="0.1" min="-2" max="2" style="width:100px;">
+                            </div>
+                            <div class="section-group" style="margin-bottom:8px;">
+                                <label class="section-label" style="font-size:11px;">Max Tokens (per request)</label>
+                                <input type="number" id="vllmMaxTokensInput" class="dark-input" value="1000" min="1" style="width:120px;">
+                            </div>
+                            <div id="vllmExtraBodyGroup" class="section-group" style="margin-bottom:8px;">
+                                <label class="section-label" style="font-size:11px;">Extra Body <span style="font-size:10px;color:var(--text-muted);">(vLLM only)</span></label>
+                                <div id="vllmExtraBodyDisplay" style="display:flex;gap:6px;align-items:center;cursor:pointer;padding:4px 8px;border:1px solid var(--border-color);border-radius:6px;background:var(--bg-input);min-height:32px;font-size:12px;color:var(--text-secondary);" title="Click to edit">
+                                    <span id="vllmExtraBodyText">Click to add key-value pairs...</span>
+                                </div>
+                                <div id="vllmExtraBodyEditor" style="display:none;margin-top:6px;">
+                                    <div id="vllmExtraBodyPairs"></div>
+                                    <div style="display:flex;gap:6px;margin-top:6px;">
+                                        <button id="vllmExtraBodyAddBtn" class="dark-btn" style="font-size:11px;padding:3px 10px;">+ Add</button>
+                                        <button id="vllmExtraBodyDoneBtn" class="dark-btn" style="font-size:11px;padding:3px 10px;">Done</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="margin-top:8px;">
+                                <button id="vllmParamsSaveBtn" class="dark-btn" style="font-size:12px;">Apply LLM Params</button>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- ===== PROMPTS ===== -->
+            <div id="panelPrompts" class="panel-section">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <span class="section-label" style="margin:0;">System Prompt</span>
+                    <div style="display:flex;gap:6px;">
+                        <button id="loadFileButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">Load</button>
+                        <button id="savePromptsSessionButton" class="dark-btn" style="font-size:11px;padding:4px 10px;">💾 Save</button>
+                        <button id="searchPromptButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">🔍 Search</button>
+                        <button id="copyPromptButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;display:flex;align-items:center;" title="Copy to clipboard"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+                        <button id="undoSystemPromptTabButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;display:none;" title="Undo deleted tab">↩</button>
+                        <button id="clearSystemPromptButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">🗑️</button>
+                    </div>
+                    <input type="file" id="fileInput" class="hidden">
+                </div>
+                <div id="systemPromptTabsBar" class="tab-bar-dark">
+                    <button class="systemprompt-tab-btn bg-blue-200 text-blue-900 text-xs px-3 py-1 rounded-t font-semibold" data-systemprompt="Sys 0">Sys 0</button>
+                    <button class="systemprompt-tab-btn bg-blue-100 text-blue-900 text-xs px-3 py-1 rounded-t" data-systemprompt="Sys 1">Sys 1</button>
+                    <button class="systemprompt-tab-btn bg-blue-100 text-blue-900 text-xs px-3 py-1 rounded-t" data-systemprompt="Sys 2">Sys 2</button>
+                    <button class="systemprompt-tab-btn bg-blue-100 text-blue-900 text-xs px-3 py-1 rounded-t" data-systemprompt="Sys 3">Sys 3</button>
+                    <button class="systemprompt-tab-btn bg-blue-100 text-blue-900 text-xs px-3 py-1 rounded-t" data-systemprompt="Sys 4">Sys 4</button>
+                    <button id="addSystemPromptTabButton" class="bg-blue-300 hover:bg-blue-400 text-blue-900 text-xs px-2 py-1 rounded-t font-bold" title="Add System Prompt tab">+</button>
+                </div>
+                <div id="promptSearchBar" style="display:none;padding:6px 0;">
+                    <div style="display:flex;gap:4px;align-items:center;">
+                        <input id="promptSearchInput" class="dark-input" style="flex:1;font-size:12px;padding:4px 8px;" placeholder="Search in current prompt...">
+                        <span id="promptSearchCount" style="font-size:11px;color:var(--text-muted);min-width:50px;text-align:center;">0/0</span>
+                        <button id="promptSearchPrev" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">▲</button>
+                        <button id="promptSearchNext" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">▼</button>
+                        <button id="promptToggleReplaceBtn" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;" title="Toggle replace">⇄</button>
+                        <button id="promptSearchClose" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">✕</button>
+                    </div>
+                    <div id="promptReplaceRow" style="display:none;margin-top:4px;gap:4px;align-items:center;">
+                        <input id="promptReplaceInput" class="dark-input" style="flex:1;font-size:12px;padding:4px 8px;" placeholder="Replace with...">
+                        <button id="promptReplaceBtn" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">Replace</button>
+                        <button id="promptReplaceAllBtn" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">All</button>
+                    </div>
+                </div>
+                <div id="systemPromptTabsContent">
+                    <textarea class="systemprompt-textarea dark-textarea" data-systemprompt="Sys 0" placeholder="Sys 0 prompt...">You are a helpful and knowledgeable language assistant. You answer questions clearly, accurately, and concisely. If you are unsure about something, you say so. You adapt your tone and level of detail to the user's needs.</textarea>
+                    <textarea class="systemprompt-textarea dark-textarea hidden" data-systemprompt="Sys 1" placeholder="Sys 1 prompt..."></textarea>
+                    <textarea class="systemprompt-textarea dark-textarea hidden" data-systemprompt="Sys 2" placeholder="Sys 2 prompt..."></textarea>
+                    <textarea class="systemprompt-textarea dark-textarea hidden" data-systemprompt="Sys 3" placeholder="Sys 3 prompt..."></textarea>
+                    <textarea class="systemprompt-textarea dark-textarea hidden" data-systemprompt="Sys 4" placeholder="Sys 4 prompt..."></textarea>
+                </div>
+            </div>
+
+            <!-- ===== SKILLS ===== -->
+            <div id="panelSkills" class="panel-section">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <span class="section-label" style="margin:0;">Skills</span>
+                    <div style="display:flex;gap:6px;">
+                        <button id="loadSkillFileButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">Load</button>
+                        <button id="saveSkillsSessionButton" class="dark-btn" style="font-size:11px;padding:4px 10px;">💾 Save</button>
+                        <button id="searchSkillButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">🔍 Search</button>
+                        <button id="copySkillButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;display:flex;align-items:center;" title="Copy to clipboard"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+                        <button id="undoSkillTabButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;display:none;" title="Undo deleted tab">↩</button>
+                        <button id="clearSkillButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">🗑️</button>
+                    </div>
+                    <input type="file" id="skillFileInput" class="hidden">
+                </div>
+                <div id="skillTabsBar" class="tab-bar-dark">
+                    <button id="tabSkill0" class="skill-tab-btn bg-sky-200 text-sky-900 text-xs px-3 py-1 rounded-t font-semibold" data-skill="Skill 0">Skill 0</button>
+                    <button id="tabSkill1" class="skill-tab-btn bg-sky-100 text-sky-900 text-xs px-3 py-1 rounded-t" data-skill="Skill 1">Skill 1</button>
+                    <button id="tabSkill2" class="skill-tab-btn bg-sky-100 text-sky-900 text-xs px-3 py-1 rounded-t" data-skill="Skill 2">Skill 2</button>
+                    <button id="tabSkill3" class="skill-tab-btn bg-sky-100 text-sky-900 text-xs px-3 py-1 rounded-t" data-skill="Skill 3">Skill 3</button>
+                    <button id="tabSkill4" class="skill-tab-btn bg-sky-100 text-sky-900 text-xs px-3 py-1 rounded-t" data-skill="Skill 4">Skill 4</button>
+                    <button id="addSkillTabButton" class="bg-sky-300 hover:bg-sky-400 text-sky-900 text-xs px-2 py-1 rounded-t font-bold" title="Add Skill tab">+</button>
+                </div>
+                <div id="skillSearchBar" style="display:none;padding:6px 0;">
+                    <div style="display:flex;gap:4px;align-items:center;">
+                        <input id="skillSearchInput" class="dark-input" style="flex:1;font-size:12px;padding:4px 8px;" placeholder="Search in current skill...">
+                        <span id="skillSearchCount" style="font-size:11px;color:var(--text-muted);min-width:50px;text-align:center;">0/0</span>
+                        <button id="skillSearchPrev" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">▲</button>
+                        <button id="skillSearchNext" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">▼</button>
+                        <button id="skillToggleReplaceBtn" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;" title="Toggle replace">⇄</button>
+                        <button id="skillSearchClose" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">✕</button>
+                    </div>
+                    <div id="skillReplaceRow" style="display:none;margin-top:4px;gap:4px;align-items:center;">
+                        <input id="skillReplaceInput" class="dark-input" style="flex:1;font-size:12px;padding:4px 8px;" placeholder="Replace with...">
+                        <button id="skillReplaceBtn" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">Replace</button>
+                        <button id="skillReplaceAllBtn" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">All</button>
+                    </div>
+                </div>
+                <div id="skillTabsContent">
+                    <textarea id="skillInput0" class="skill-textarea dark-textarea" data-skill="Skill 0" placeholder="Skill 0..."></textarea>
+                    <textarea id="skillInput1" class="skill-textarea dark-textarea hidden" data-skill="Skill 1" placeholder="Skill 1..."></textarea>
+                    <textarea id="skillInput2" class="skill-textarea dark-textarea hidden" data-skill="Skill 2" placeholder="Skill 2..."></textarea>
+                    <textarea id="skillInput3" class="skill-textarea dark-textarea hidden" data-skill="Skill 3" placeholder="Skill 3..."></textarea>
+                    <textarea id="skillInput4" class="skill-textarea dark-textarea hidden" data-skill="Skill 4" placeholder="Skill 4..."></textarea>
+                </div>
+            </div>
+
+            <!-- ===== USER DATA ===== -->
+            <div id="panelUserData" class="panel-section">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <span class="section-label" style="margin:0;">User Data</span>
+                    <div style="display:flex;gap:6px;">
+                        <button id="loadUserDataFileButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">Load</button>
+                        <button id="saveUserDataSessionButton" class="dark-btn" style="font-size:11px;padding:4px 10px;">💾 Save</button>
+                        <button id="searchUserDataButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">🔍 Search</button>
+                        <button id="copyUserDataButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;display:flex;align-items:center;" title="Copy to clipboard"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+                        <button id="undoUserDataTabButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;display:none;" title="Undo deleted tab">↩</button>
+                        <button id="clearUserDataButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">🗑️</button>
+                        <button id="cleanAllUserDataButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;" title="Clean All: remove extra tabs and clear contents">🧹</button>
+                    </div>
+                    <input type="file" id="userDataFileInput" class="hidden">
+                </div>
+                <div id="userDataTabsBar" class="tab-bar-dark">
+                    <button id="tabData0" class="userdata-tab-btn bg-amber-200 text-amber-900 text-xs px-3 py-1 rounded-t font-semibold" data-userdata="Data 0">Data 0</button>
+                    <button id="tabData1" class="userdata-tab-btn bg-amber-100 text-amber-900 text-xs px-3 py-1 rounded-t" data-userdata="Data 1">Data 1</button>
+                    <button id="tabData2" class="userdata-tab-btn bg-amber-100 text-amber-900 text-xs px-3 py-1 rounded-t" data-userdata="Data 2">Data 2</button>
+                    <button id="tabData3" class="userdata-tab-btn bg-amber-100 text-amber-900 text-xs px-3 py-1 rounded-t" data-userdata="Data 3">Data 3</button>
+                    <button id="tabData4" class="userdata-tab-btn bg-amber-100 text-amber-900 text-xs px-3 py-1 rounded-t" data-userdata="Data 4">Data 4</button>
+                    <button id="addUserDataTabButton" class="bg-amber-300 hover:bg-amber-400 text-amber-900 text-xs px-2 py-1 rounded-t font-bold" title="Add Data tab">+</button>
+                </div>
+                <div id="userDataSearchBar" style="display:none;padding:6px 0;">
+                    <div style="display:flex;gap:4px;align-items:center;">
+                        <input id="userDataSearchInput" class="dark-input" style="flex:1;font-size:12px;padding:4px 8px;" placeholder="Search in current data...">
+                        <span id="userDataSearchCount" style="font-size:11px;color:var(--text-muted);min-width:50px;text-align:center;">0/0</span>
+                        <button id="userDataSearchPrev" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">▲</button>
+                        <button id="userDataSearchNext" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">▼</button>
+                        <button id="userDataToggleReplaceBtn" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;" title="Toggle replace">⇄</button>
+                        <button id="userDataSearchClose" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">✕</button>
+                    </div>
+                    <div id="userDataReplaceRow" style="display:none;margin-top:4px;gap:4px;align-items:center;">
+                        <input id="userDataReplaceInput" class="dark-input" style="flex:1;font-size:12px;padding:4px 8px;" placeholder="Replace with...">
+                        <button id="userDataReplaceBtn" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">Replace</button>
+                        <button id="userDataReplaceAllBtn" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">All</button>
+                    </div>
+                </div>
+                <div id="userDataTabsContent">
+                    <textarea id="userDataInput0" class="userdata-textarea dark-textarea" data-userdata="Data 0" placeholder="Data 0..."></textarea>
+                    <textarea id="userDataInput1" class="userdata-textarea dark-textarea hidden" data-userdata="Data 1" placeholder="Data 1..."></textarea>
+                    <textarea id="userDataInput2" class="userdata-textarea dark-textarea hidden" data-userdata="Data 2" placeholder="Data 2..."></textarea>
+                    <textarea id="userDataInput3" class="userdata-textarea dark-textarea hidden" data-userdata="Data 3" placeholder="Data 3..."></textarea>
+                    <textarea id="userDataInput4" class="userdata-textarea dark-textarea hidden" data-userdata="Data 4" placeholder="Data 4..."></textarea>
+                </div>
+            </div>
+
+            <!-- ===== OUTPUT ===== -->
+            <div id="panelOutput" class="panel-section">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <span class="section-label" style="margin:0;">Output</span>
+                    <div style="display:flex;gap:6px;">
+                        <button id="loadOutputFileButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">Load</button>
+                        <button id="saveOutputSessionButton" class="dark-btn" style="font-size:11px;padding:4px 10px;">💾 Save</button>
+                        <button id="searchOutputButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">🔍 Search</button>
+                        <button id="copyOutputButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;display:flex;align-items:center;" title="Copy to clipboard"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+                        <button id="undoOutputTabButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;display:none;" title="Undo deleted tab">↩</button>
+                        <button id="clearOutputButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">🗑️</button>
+                        <button id="cleanAllOutputButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;" title="Clean All: remove extra tabs and clear contents">🧹</button>
+                    </div>
+                    <input type="file" id="outputFileInput" class="hidden">
+                </div>
+                <div id="outputTabsBar" class="tab-bar-dark">
+                    <button id="tabOut0" class="output-tab-btn bg-emerald-200 text-emerald-900 text-xs px-3 py-1 rounded-t font-semibold" data-output="Out 0">Out 0</button>
+                    <button id="tabOut1" class="output-tab-btn bg-emerald-100 text-emerald-900 text-xs px-3 py-1 rounded-t" data-output="Out 1">Out 1</button>
+                    <button id="tabOut2" class="output-tab-btn bg-emerald-100 text-emerald-900 text-xs px-3 py-1 rounded-t" data-output="Out 2">Out 2</button>
+                    <button id="tabOut3" class="output-tab-btn bg-emerald-100 text-emerald-900 text-xs px-3 py-1 rounded-t" data-output="Out 3">Out 3</button>
+                    <button id="tabOut4" class="output-tab-btn bg-emerald-100 text-emerald-900 text-xs px-3 py-1 rounded-t" data-output="Out 4">Out 4</button>
+                    <button id="addOutputTabButton" class="bg-emerald-300 hover:bg-emerald-400 text-emerald-900 text-xs px-2 py-1 rounded-t font-bold" title="Add Output tab">+</button>
+                </div>
+                <div id="outputSearchBar" style="display:none;padding:6px 0;">
+                    <div style="display:flex;gap:4px;align-items:center;">
+                        <input id="outputSearchInput" class="dark-input" style="flex:1;font-size:12px;padding:4px 8px;" placeholder="Search in current output...">
+                        <span id="outputSearchCount" style="font-size:11px;color:var(--text-muted);min-width:50px;text-align:center;">0/0</span>
+                        <button id="outputSearchPrev" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">▲</button>
+                        <button id="outputSearchNext" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">▼</button>
+                        <button id="outputToggleReplaceBtn" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;" title="Toggle replace">⇄</button>
+                        <button id="outputSearchClose" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">✕</button>
+                    </div>
+                    <div id="outputReplaceRow" style="display:none;margin-top:4px;gap:4px;align-items:center;">
+                        <input id="outputReplaceInput" class="dark-input" style="flex:1;font-size:12px;padding:4px 8px;" placeholder="Replace with...">
+                        <button id="outputReplaceBtn" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">Replace</button>
+                        <button id="outputReplaceAllBtn" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">All</button>
+                    </div>
+                </div>
+                <div id="outputTabsContent">
+                    <textarea id="outputInput0" class="output-textarea dark-textarea" data-output="Out 0" placeholder="Out 0..."></textarea>
+                    <textarea id="outputInput1" class="output-textarea dark-textarea hidden" data-output="Out 1" placeholder="Out 1..."></textarea>
+                    <textarea id="outputInput2" class="output-textarea dark-textarea hidden" data-output="Out 2" placeholder="Out 2..."></textarea>
+                    <textarea id="outputInput3" class="output-textarea dark-textarea hidden" data-output="Out 3" placeholder="Out 3..."></textarea>
+                    <textarea id="outputInput4" class="output-textarea dark-textarea hidden" data-output="Out 4" placeholder="Out 4..."></textarea>
+                </div>
+            </div>
+
+            <!-- ===== IMAGES ===== -->
+            <div id="panelImages" class="panel-section">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <span class="section-label" style="margin:0;">Images</span>
+                    <div style="display:flex;gap:6px;">
+                        <button id="loadImageFileButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">Load</button>
+                        <button id="addImageUrlButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;" title="Add an image by URL">🌐 URL</button>
+                        <button id="clearImagesButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;" title="Remove all images">🗑️</button>
+                    </div>
+                    <input type="file" id="imageFileInput" class="hidden" accept="image/*" multiple>
+                </div>
+                <p style="font-size:11px;color:var(--text-muted);margin:0 0 10px;">
+                    Drag &amp; drop an image here to add it to the gallery, or into the message box to also attach it to your next message.
+                    Use <code>add_image_to_chat(chat, id_image)</code> in an agent to inject an image (by index) into a chat.
+                </p>
+                <div id="imagesGallery" class="images-gallery"></div>
+            </div>
+
+            <!-- ===== TOOLS ===== -->
+            <div id="panelTools" class="panel-section">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <span class="section-label" style="margin:0;">Tools</span>
+                    <div style="display:flex;gap:6px;">
+                        <button id="loadToolFileButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">Load</button>
+                        <button id="saveToolsSessionButton" class="dark-btn" style="font-size:11px;padding:4px 10px;">💾 Save</button>
+                        <button id="searchToolButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">🔍 Search</button>
+                        <button id="copyToolButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;display:flex;align-items:center;" title="Copy to clipboard"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+                        <button id="undoToolTabButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;display:none;" title="Undo deleted tab">↩</button>
+                        <button id="clearToolButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">🗑️</button>
+                    </div>
+                    <input type="file" id="toolFileInput" class="hidden">
+                </div>
+                <div id="toolTabsBar" class="tab-bar-dark">
+                    <button id="tabTool0" class="tool-tab-btn bg-cyan-200 text-cyan-900 text-xs px-3 py-1 rounded-t font-semibold" data-tool="Tool 0">Tool 0</button>
+                    <button id="tabTool1" class="tool-tab-btn bg-cyan-100 text-cyan-900 text-xs px-3 py-1 rounded-t" data-tool="Tool 1">Tool 1</button>
+                    <button id="tabTool2" class="tool-tab-btn bg-cyan-100 text-cyan-900 text-xs px-3 py-1 rounded-t" data-tool="Tool 2">Tool 2</button>
+                    <button id="tabTool3" class="tool-tab-btn bg-cyan-100 text-cyan-900 text-xs px-3 py-1 rounded-t" data-tool="Tool 3">Tool 3</button>
+                    <button id="tabTool4" class="tool-tab-btn bg-cyan-100 text-cyan-900 text-xs px-3 py-1 rounded-t" data-tool="Tool 4">Tool 4</button>
+                    <button id="addToolTabButton" class="bg-cyan-300 hover:bg-cyan-400 text-cyan-900 text-xs px-2 py-1 rounded-t font-bold" title="Add Tool tab">+</button>
+                </div>
+                <div id="toolSearchBar" style="display:none;padding:6px 0;">
+                    <div style="display:flex;gap:4px;align-items:center;">
+                        <input id="toolSearchInput" class="dark-input" style="flex:1;font-size:12px;padding:4px 8px;" placeholder="Search in current tool...">
+                        <span id="toolSearchCount" style="font-size:11px;color:var(--text-muted);min-width:50px;text-align:center;">0/0</span>
+                        <button id="toolSearchPrev" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">▲</button>
+                        <button id="toolSearchNext" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">▼</button>
+                        <button id="toolToggleReplaceBtn" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;" title="Toggle replace">⇄</button>
+                        <button id="toolSearchClose" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">✕</button>
+                    </div>
+                    <div id="toolReplaceRow" style="display:none;margin-top:4px;gap:4px;align-items:center;">
+                        <input id="toolReplaceInput" class="dark-input" style="flex:1;font-size:12px;padding:4px 8px;" placeholder="Replace with...">
+                        <button id="toolReplaceBtn" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">Replace</button>
+                        <button id="toolReplaceAllBtn" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">All</button>
+                    </div>
+                </div>
+                <div id="toolTabsContent">
+                    <textarea id="toolInput0" class="tool-textarea dark-textarea" data-tool="Tool 0" placeholder="Tool 0..."></textarea>
+                    <textarea id="toolInput1" class="tool-textarea dark-textarea hidden" data-tool="Tool 1" placeholder="Tool 1..."></textarea>
+                    <textarea id="toolInput2" class="tool-textarea dark-textarea hidden" data-tool="Tool 2" placeholder="Tool 2..."></textarea>
+                    <textarea id="toolInput3" class="tool-textarea dark-textarea hidden" data-tool="Tool 3" placeholder="Tool 3..."></textarea>
+                    <textarea id="toolInput4" class="tool-textarea dark-textarea hidden" data-tool="Tool 4" placeholder="Tool 4..."></textarea>
+                </div>
+            </div>
+
+            <!-- ===== AGENTS ===== -->
+            <div id="panelAgents" class="panel-section">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span class="section-label" style="margin:0;">Agents</span>
+                        <button id="toggleBasicModeButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;min-width:52px;text-align:center;" title="Toggle between LispE, BasAIc and Pythonic mode">LispE</button>
+                        <button id="compileBasicButton" class="dark-btn" style="font-size:11px;padding:4px 10px;display:none;" title="Compile to LispE">Compile</button>
+                        <button id="tabsToSpacesAgentsButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;display:none;" title="Convert tabs to spaces">Tab→Space</button>
+                        <button id="setAgentsButton" class="dark-btn" style="font-size:11px;padding:4px 10px;">Set</button>
+                    </div>
+                    <div style="display:flex;gap:6px;">
+                        <button id="undoAgentsButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;" title="Undo">↩</button>
+                        <button id="redoAgentsButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;" title="Redo">↪</button>
+                        <button id="copyAgentsButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;display:flex;align-items:center;" title="Copy to clipboard"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+                        <button id="searchAgentsButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">🔍</button>
+                    </div>
+                    <div style="display:flex;gap:6px;">
+                        <button id="loadAgentsFileButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">Load</button>
+                        <button id="saveAgentsSessionButton" class="dark-btn" style="font-size:11px;padding:4px 10px;">💾 Save</button>
+                        <button id="undoAgentTabButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;display:none;" title="Undo deleted tab">↩</button>
+                        <button id="clearAgentsButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">🗑️</button>
+                    </div>
+                    <input type="file" id="agentsFileInput" class="hidden" accept=".scm,.ss,.rkt,.lisp,.lsp,.txt,.bas,.basic">
+                </div>
+                <div id="agentTabsBar" class="tab-bar-dark">
+                    <button id="tabAgent0" class="agent-tab-btn bg-purple-200 text-purple-900 text-xs px-3 py-1 rounded-t font-semibold" data-agent="Agent 0">Agent 0</button>
+                    <button id="tabAgent1" class="agent-tab-btn bg-purple-100 text-purple-900 text-xs px-3 py-1 rounded-t" data-agent="Agent 1">Agent 1</button>
+                    <button id="tabAgent2" class="agent-tab-btn bg-purple-100 text-purple-900 text-xs px-3 py-1 rounded-t" data-agent="Agent 2">Agent 2</button>
+                    <button id="tabAgent3" class="agent-tab-btn bg-purple-100 text-purple-900 text-xs px-3 py-1 rounded-t" data-agent="Agent 3">Agent 3</button>
+                    <button id="tabAgent4" class="agent-tab-btn bg-purple-100 text-purple-900 text-xs px-3 py-1 rounded-t" data-agent="Agent 4">Agent 4</button>
+                    <button id="addAgentTabButton" class="bg-purple-300 hover:bg-purple-400 text-purple-900 text-xs px-2 py-1 rounded-t font-bold" title="Add Agent tab">+</button>
+                </div>
+                <div id="agentsSearchBar" style="display:none;padding:6px 0;">
+                    <div style="display:flex;gap:4px;align-items:center;">
+                        <input id="agentsSearchInput" class="dark-input" style="flex:1;font-size:12px;padding:4px 8px;" placeholder="Search in agents...">
+                        <span id="agentsSearchCount" style="font-size:11px;color:var(--text-muted);min-width:50px;text-align:center;">0/0</span>
+                        <button id="agentsSearchPrev" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">▲</button>
+                        <button id="agentsSearchNext" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">▼</button>
+                        <button id="agentsToggleReplaceBtn" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;" title="Toggle replace">⇄</button>
+                        <button id="agentsSearchClose" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">✕</button>
+                    </div>
+                    <div id="agentsReplaceRow" style="display:none;margin-top:4px;gap:4px;align-items:center;">
+                        <input id="agentsReplaceInput" class="dark-input" style="flex:1;font-size:12px;padding:4px 8px;" placeholder="Replace with...">
+                        <button id="agentsReplaceBtn" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">Replace</button>
+                        <button id="agentsReplaceAllBtn" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">All</button>
+                    </div>
+                </div>
+                <div id="agentsEditorContainer" class="editor-container" style="height: 700px;">
+                    <textarea id="agentsCodeInput"></textarea>
+                </div>
+                <div id="agentsResizeHandle" class="resize-handle">
+                    <span>⋯</span>
+                </div>
+            </div>
+
+            <!-- ===== CONSOLE ===== -->
+            <div id="panelConsole" class="panel-section">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <span class="section-label" style="margin:0;">Console</span>
+                    <div style="display:flex;gap:6px;">
+                        <button id="copyConsoleButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;display:flex;align-items:center;" title="Copy to clipboard"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+                        <button id="cleanConsoleButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">🗑️ Clean</button>
+                        <button id="resetConsoleButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">🔄 Reset</button>
+                    </div>
+                </div>
+                <div id="consoleOutputContainer" class="console-output-container"></div>
+                <div id="consoleEditorContainer" class="editor-container" style="height: 80px; margin-top: 8px;">
+                    <textarea id="consoleCodeInput"></textarea>
+                </div>
+
+                <!-- ===== CODE RUNNER ===== -->
+                <div style="margin-top:24px;border-top:1px solid var(--border-color);padding-top:16px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <span class="section-label" style="margin:0;">Code Runner</span>
+                            <button id="toggleCodeRunnerModeButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;min-width:52px;text-align:center;" title="Toggle between LispE, BasAIc and Pythonic mode">LispE</button>
+                            <button id="compileCodeRunnerButton" class="dark-btn" style="font-size:11px;padding:4px 10px;display:none;" title="Compile to LispE">Compile</button>
+                            <button id="tabsToSpacesCodeRunnerButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;display:none;" title="Convert tabs to spaces">Tab→Space</button>
+                            <button id="runCodeRunnerButton" class="dark-btn" style="font-size:11px;padding:4px 10px;">▶ Run</button>
+                        </div>
+                        <div style="display:flex;gap:6px;">
+                            <button id="undoCodeRunnerButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;" title="Undo">↩</button>
+                            <button id="redoCodeRunnerButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;" title="Redo">↪</button>
+                            <button id="copyCodeRunnerButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;display:flex;align-items:center;" title="Copy to clipboard"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+                            <button id="searchCodeRunnerButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">🔍</button>
+                        </div>
+                        <div style="display:flex;gap:6px;">
+                            <button id="loadCodeRunnerFileButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">Load</button>
+                            <button id="saveCodeRunnerSessionButton" class="dark-btn" style="font-size:11px;padding:4px 10px;">💾 Save</button>
+                            <button id="undoCodeRunnerTabButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;display:none;" title="Undo delete tab">↶</button>
+                            <button id="clearCodeRunnerButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">🗑️</button>
+                        </div>
+                        <input type="file" id="codeRunnerFileInput" class="hidden" accept=".scm,.ss,.rkt,.lisp,.lsp,.txt,.bas,.basic,.py">
+                    </div>
+                    <div id="codeRunnerTabsBar" class="tab-bar-dark">
+                        <button id="tabCode0" class="coderunner-tab-btn bg-teal-200 text-teal-900 text-xs px-3 py-1 rounded-t font-semibold" data-code="Code 0">Code 0</button>
+                        <button id="tabCode1" class="coderunner-tab-btn bg-teal-100 text-teal-900 text-xs px-3 py-1 rounded-t" data-code="Code 1">Code 1</button>
+                        <button id="tabCode2" class="coderunner-tab-btn bg-teal-100 text-teal-900 text-xs px-3 py-1 rounded-t" data-code="Code 2">Code 2</button>
+                        <button id="tabCode3" class="coderunner-tab-btn bg-teal-100 text-teal-900 text-xs px-3 py-1 rounded-t" data-code="Code 3">Code 3</button>
+                        <button id="tabCode4" class="coderunner-tab-btn bg-teal-100 text-teal-900 text-xs px-3 py-1 rounded-t" data-code="Code 4">Code 4</button>
+                        <button id="addCodeRunnerTabButton" class="bg-teal-300 hover:bg-teal-400 text-teal-900 text-xs px-2 py-1 rounded-t font-bold" title="Add Code tab">+</button>
+                    </div>
+                    <div id="codeRunnerSearchBar" style="display:none;padding:6px 0;">
+                        <div style="display:flex;gap:4px;align-items:center;">
+                            <input id="codeRunnerSearchInput" class="dark-input" style="flex:1;font-size:12px;padding:4px 8px;" placeholder="Search in code...">
+                            <span id="codeRunnerSearchCount" style="font-size:11px;color:var(--text-muted);min-width:50px;text-align:center;">0/0</span>
+                            <button id="codeRunnerSearchPrev" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">▲</button>
+                            <button id="codeRunnerSearchNext" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">▼</button>
+                            <button id="codeRunnerToggleReplaceBtn" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;" title="Toggle replace">⇄</button>
+                            <button id="codeRunnerSearchClose" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">✕</button>
+                        </div>
+                        <div id="codeRunnerReplaceRow" style="display:none;margin-top:4px;gap:4px;align-items:center;">
+                            <input id="codeRunnerReplaceInput" class="dark-input" style="flex:1;font-size:12px;padding:4px 8px;" placeholder="Replace with...">
+                            <button id="codeRunnerReplaceBtn" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">Replace</button>
+                            <button id="codeRunnerReplaceAllBtn" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">All</button>
+                        </div>
+                    </div>
+                    <div id="codeRunnerEditorContainer" class="editor-container" style="height: 300px;">
+                        <textarea id="codeRunnerCodeInput"></textarea>
+                    </div>
+                    <div id="codeRunnerResizeHandle" class="resize-handle">
+                        <span>⋯</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== INITIALIZATION ===== -->
+            <div id="panelInit" class="panel-section">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span class="section-label" style="margin:0;">Initialization</span>
+                        <button id="setInitializationButton" class="dark-btn" style="font-size:11px;padding:4px 10px;">Set</button>
+                    </div>
+                    <div style="display:flex;gap:6px;">
+                        <button id="undoInitButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;" title="Undo">↩</button>
+                        <button id="redoInitButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;" title="Redo">↪</button>
+                        <button id="copyInitButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;display:flex;align-items:center;" title="Copy to clipboard"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+                        <button id="searchInitButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">🔍</button>
+                    </div>
+                    <div style="display:flex;gap:6px;">
+                        <button id="loadInitFileButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">Load</button>
+                        <button id="saveInitSessionButton" class="dark-btn" style="font-size:11px;padding:4px 10px;">💾 Save</button>
+                        <button id="resetInitButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;color:var(--danger);" title="Reset all libs to defaults">⟲ Reset</button>
+                        <button id="clearInitButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">🗑️</button>
+                    </div>
+                    <input type="file" id="initFileInput" class="hidden" accept=".scm,.ss,.rkt,.lisp,.lsp,.txt">
+                </div>
+                <div id="initTabsBar" class="tab-bar-dark">
+                    <button id="tabLib0" class="init-tab-btn bg-indigo-200 text-indigo-900 text-xs px-3 py-1 rounded-t font-semibold" data-lib="lib 0">lib 0</button>
+                    <button id="tabLib1" class="init-tab-btn bg-indigo-100 text-indigo-900 text-xs px-3 py-1 rounded-t" data-lib="lib 1">lib 1</button>
+                    <button id="tabLib2" class="init-tab-btn bg-indigo-100 text-indigo-900 text-xs px-3 py-1 rounded-t" data-lib="lib 2">lib 2</button>
+                    <button id="tabLib3" class="init-tab-btn bg-indigo-100 text-indigo-900 text-xs px-3 py-1 rounded-t" data-lib="lib 3">lib 3</button>
+                    <button id="tabLib4" class="init-tab-btn bg-indigo-100 text-indigo-900 text-xs px-3 py-1 rounded-t" data-lib="lib 4">lib 4</button>
+                    <button id="addInitTabButton" class="bg-indigo-300 hover:bg-indigo-400 text-indigo-900 text-xs px-2 py-1 rounded-t font-bold" title="Add lib tab">+</button>
+                </div>
+                <div id="initSearchBar" style="display:none;padding:6px 0;">
+                    <div style="display:flex;gap:4px;align-items:center;">
+                        <input id="initSearchInput" class="dark-input" style="flex:1;font-size:12px;padding:4px 8px;" placeholder="Search in init...">
+                        <span id="initSearchCount" style="font-size:11px;color:var(--text-muted);min-width:50px;text-align:center;">0/0</span>
+                        <button id="initSearchPrev" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">▲</button>
+                        <button id="initSearchNext" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">▼</button>
+                        <button id="initToggleReplaceBtn" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;" title="Toggle replace">⇄</button>
+                        <button id="initSearchClose" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">✕</button>
+                    </div>
+                    <div id="initReplaceRow" style="display:none;margin-top:4px;gap:4px;align-items:center;">
+                        <input id="initReplaceInput" class="dark-input" style="flex:1;font-size:12px;padding:4px 8px;" placeholder="Replace with...">
+                        <button id="initReplaceBtn" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">Replace</button>
+                        <button id="initReplaceAllBtn" class="dark-btn-secondary" style="font-size:11px;padding:3px 8px;">All</button>
+                    </div>
+                </div>
+                <div id="initializationEditorContainer" class="editor-container" style="height: 400px;">
+                    <textarea id="initializationInput"></textarea>
+                </div>
+                <div id="initializationResizeHandle" class="resize-handle">
+                    <span>⋯</span>
+                </div>
+                <div class="section-group" style="margin-top:16px;">
+                    <label class="section-label">Confidential</label>
+                    <textarea id="confidentialInput" class="dark-textarea" placeholder="Confidential data..." style="min-height:100px;" autocomplete="off"></textarea>
+                </div>
+                <div class="section-group" style="margin-top:16px;">
+                    <label class="section-label">Secret</label>
+                    <input type="password" id="secretInput" class="dark-input" placeholder="Secret data..." autocomplete="off" style="width:100%;" />
+                </div>
+            </div>
+
+            <!-- ===== CONNECTORS ===== -->
+            <div id="panelConnectors" class="panel-section">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                    <span class="section-label" style="margin:0;">Connectors</span>
+                    <div style="display:flex;gap:6px;">
+                        <button id="connectorConnectBtn" class="dark-btn" style="font-size:11px;padding:4px 10px;" title="Connect to selected server">Connect</button>
+                        <button id="connectorDisconnectBtn" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;" title="Disconnect from selected server">Disconnect</button>
+                        <button id="connectorFetchBtn" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;" title="Fetch available tools from server">🔍 Fetch</button>
+                        <button id="connectorTestBtn" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;" title="Test connection">Test</button>
+                        <button id="connectorCopyBtn" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;display:flex;align-items:center;" title="Copy enabled tools to clipboard">📋</button>
+                        <button id="connectorResetBtn" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;color:var(--danger);" title="Reset current connector to its default template">⟲ Reset</button>
+                    </div>
+                </div>
+                <!-- Connector status bar -->
+                <div id="connectorStatusBar" style="font-size:11px;color:var(--text-muted);margin-bottom:8px;padding:4px 8px;background:var(--bg-elevated);border-radius:4px;">No connectors active</div>
+                <!-- Connector tabs -->
+                <div id="connectorTabsBar" class="tab-bar-dark" style="flex-wrap:wrap;gap:2px;"></div>
+                <!-- Connector content (dynamically filled) -->
+                <div id="connectorContent" style="margin-top:8px;">
+                    <!-- Zone A: MCP Config -->
+                    <div class="connector-zone-header" id="connectorZoneAHeader">
+                        <span>▶ MCP Configuration</span>
+                    </div>
+                    <div class="connector-zone-content" id="connectorZoneA">
+                        <textarea id="connectorConfigTextarea" class="dark-textarea" style="min-height:120px;font-family:'JetBrains Mono',monospace;font-size:11px;" placeholder='{"name": "", "transport": "http", "url": ""}'></textarea>
+                    </div>
+                    <!-- Zone B: Secrets / Variables -->
+                    <div class="connector-zone-header" id="connectorZoneBHeader">
+                        <span>▶ Credentials 🔒</span>
+                    </div>
+                    <div class="connector-zone-content" id="connectorZoneB">
+                        <div id="connectorVarsContainer"></div>
+                        <button id="connectorAddVarBtn" class="dark-btn-secondary" style="font-size:10px;padding:3px 8px;margin-top:4px;">+ Add variable</button>
+                    </div>
+                    <!-- Zone C: MCP Tools (accordion) -->
+                    <div class="connector-zone-header" id="connectorZoneCHeader">
+                        <span>▶ MCP Tools</span>
+                        <span id="connectorToolsCount" style="font-size:10px;"></span>
+                    </div>
+                    <div class="connector-zone-content" id="connectorZoneC">
+                        <div style="display:flex;justify-content:flex-end;margin-bottom:4px;">
+                            <button id="connectorToggleAllToolsBtn" class="dark-btn-secondary" style="font-size:10px;padding:3px 8px;">☑ Select all</button>
+                        </div>
+                        <div id="connectorToolsList"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ===== MODALS ===== -->
+    <div id="renameSessionModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white p-6 rounded-lg shadow-xl text-center">
+            <p class="text-lg font-semibold mb-2">Rename Session</p>
+            <p class="text-sm text-gray-600 mb-3">Current: <span id="renameSessionOldName" class="font-mono text-blue-600"></span></p>
+            <input type="text" id="renameSessionNewName" class="w-96 p-2 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="New session name">
+            <div class="flex justify-end gap-2">
+                <button id="renameSessionOkButton" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg">Rename</button>
+                <button id="renameSessionCancelButton" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="sessionNameModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white p-6 rounded-lg shadow-xl text-center">
+            <p class="text-lg font-semibold mb-4">Enter Session Name:</p>
+            <input type="text" id="sessionNameInput" class="w-96 p-2 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <div class="flex justify-end gap-2">
+                <button id="sessionNameOkButton" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg">OK</button>
+                <button id="sessionNameCancelButton" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+
+    <div id="removeSessionsModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white p-6 rounded-lg shadow-xl" style="min-width: 400px; max-height: 80vh; display: flex; flex-direction: column;">
+            <p class="text-lg font-semibold mb-4">Select sessions to delete:</p>
+            <div class="flex gap-2 mb-3">
+                <button id="removeSelectAllButton" class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-800 font-semibold py-1 px-3 rounded">Select All</button>
+                <button id="removeDeselectAllButton" class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-1 px-3 rounded">Deselect All</button>
+            </div>
+            <div id="removeSessionsList" class="overflow-y-auto mb-4 border border-gray-200 rounded-lg p-3" style="max-height: 50vh;"></div>
+            <div class="flex justify-end gap-2">
+                <button id="removeSessionsConfirmButton" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg">Delete</button>
+                <button id="removeSessionsCancelButton" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="dumpSessionsModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white p-6 rounded-lg shadow-xl" style="min-width: 400px; max-height: 80vh; display: flex; flex-direction: column;">
+            <p class="text-lg font-semibold mb-4">Select sessions to store:</p>
+            <div class="flex gap-2 mb-3">
+                <button id="dumpSelectAllButton" class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-800 font-semibold py-1 px-3 rounded">Select All</button>
+                <button id="dumpDeselectAllButton" class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-1 px-3 rounded">Deselect All</button>
+            </div>
+            <div id="dumpSessionsList" class="overflow-y-auto mb-4 border border-gray-200 rounded-lg p-3" style="max-height: 50vh;"></div>
+            <div class="mb-3">
+                <label class="block text-sm font-medium text-gray-700 mb-1">File name:</label>
+                <input type="text" id="dumpFileNameInput" class="w-full p-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400" value="store_sessions.json">
+            </div>
+            <div class="flex justify-end gap-2">
+                <button id="dumpSessionsConfirmButton" class="bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2 px-4 rounded-lg">Store</button>
+                <button id="dumpSessionsCancelButton" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Folder Name Modal -->
+    <div id="folderNameModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white p-6 rounded-lg shadow-xl text-center">
+            <p class="text-lg font-semibold mb-4">Folder Name:</p>
+            <input type="text" id="folderNameInput" class="w-96 p-2 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="New folder">
+            <div class="flex justify-end gap-2">
+                <button id="folderNameOkButton" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg">OK</button>
+                <button id="folderNameCancelButton" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Move Session Modal -->
+    <div id="moveSessionModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white p-6 rounded-lg shadow-xl" style="min-width: 400px; max-height: 80vh; display: flex; flex-direction: column;">
+            <p class="text-lg font-semibold mb-4">Move "<span id="moveSessionName"></span>" to:</p>
+            <div id="moveFolderList" class="overflow-y-auto mb-4 border border-gray-200 rounded-lg p-3" style="max-height: 50vh;"></div>
+            <div class="flex justify-end gap-2">
+                <button id="moveSessionOkButton" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg">Move</button>
+                <button id="moveSessionCancelButton" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Config Snapshot Key Display Modal removed (merged into Model Keys) -->
+
+    <!-- Model Keys Modal (create / load / delete / copy keys) -->
+    <div id="manageConfigsModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white p-3 rounded-lg shadow-xl" style="min-width:380px;max-height:80vh;display:flex;flex-direction:column;">
+            <p class="text-xs font-semibold mb-2">Model Keys</p>
+            <div id="configSnapshotsList" class="overflow-y-auto mb-2 border border-gray-200 rounded p-2 text-xs" style="max-height:50vh;"></div>
+            <div class="flex justify-end gap-1 flex-wrap">
+                <button id="configLoadSelectedBtn" class="bg-blue-600 hover:bg-blue-700 text-white text-xs py-1 px-2 rounded">Load</button>
+                <button id="configCopyKeyBtn" class="bg-green-600 hover:bg-green-700 text-white text-xs py-1 px-2 rounded">Copy</button>
+                <button id="configStoreInSessionBtn" class="bg-purple-600 hover:bg-purple-700 text-white text-xs py-1 px-2 rounded" title="Attach the selected key (with its config) to the current session, so it travels with it.">📎 Store in Session</button>
+                <button id="configUnstoreFromSessionBtn" class="bg-yellow-600 hover:bg-yellow-700 text-white text-xs py-1 px-2 rounded" title="Detach the selected key from the current session.">Unstore</button>
+                <button id="configDeleteSelectedBtn" class="bg-red-600 hover:bg-red-700 text-white text-xs py-1 px-2 rounded">Delete</button>
+                <button id="manageConfigsCloseBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 text-xs py-1 px-2 rounded">Ok</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Model Key Modal -->
+    <div id="addModelKeyModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white p-6 rounded-lg shadow-xl text-center">
+            <p class="text-lg font-semibold mb-4">Add Model Key</p>
+            <input type="text" id="addModelKeyInput" class="w-96 p-2 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm text-blue-700" placeholder="Key name">
+            <div class="flex justify-end gap-2">
+                <button id="addModelKeyOkButton" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg">Create</button>
+                <button id="addModelKeyCancelButton" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- HIDDEN FILE INPUTS -->
+    <input type="file" id="dumpFileInput" class="hidden" accept=".json">
+    <input type="file" id="archiveFileInput" class="hidden" accept=".json">
+
+
+
+    <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
+    <script src="app-core.js"></script>
+    <script src="app-search-api.js"></script>
+    <script src="app-server.js"></script>
+    <script src="app-chat.js"></script>
+    <script src="app-sessions.js"></script>
+    <script src="app-tabs.js"></script>
+    <script src="app-agents.js"></script>
+    <script src="app-editors.js"></script>
+    <script src="app-connectors-ui.js"></script>
+    <script src="app-images.js"></script>
+    <script src="tools.js"></script>
+</body>
+</html>
