@@ -104,7 +104,7 @@ This single command:
     └──────────┘   └──────────┘   └──────────┘
 ```
 
-The frontend lives in `templates/` and is split into one HTML shell (`index.html`) plus several modular JS files (`app-core.js`, `app-chat.js`, `app-tabs.js`, `app-agents.js`, `app-editors.js`, `app-sessions.js`, `app-server.js`, `app-search-api.js`, `app-connectors-ui.js`, `tools.js`). It communicates with the FastAPI backend exclusively via `fetch` calls. The LispE engine runs entirely in the browser via WebAssembly.
+The frontend lives in `templates/` and is split into one HTML shell (`index.html`) plus several modular JS files (`app-core.js`, `app-chat.js`, `app-tabs.js`, `app-agents.js`, `app-editors.js`, `app-sessions.js`, `app-server.js`, `app-search-api.js`, `app-connectors-ui.js`, `app-images.js`, `tools.js`). It communicates with the FastAPI backend exclusively via `fetch` calls. The LispE engine runs entirely in the browser via WebAssembly.
 
 ---
 
@@ -198,7 +198,7 @@ Inside the panel, sub-panels are organized as a row of small tabs that are visua
 | ⚙️ **Settings** (standalone) | Settings |
 | 📝 **Prompts** | Prompts · Skills · Tools · Connectors |
 | 💻 **Code** | Agents · Console · Core |
-| 📊 **Data** | User Data · Output |
+| 📊 **Data** | User Data · Output · Images |
 
 Clicking a top-bar hat button activates the corresponding group and shows the first sub-tab; you can then switch between sub-tabs of that group. The right-panel header displays the active sub-tab name and offers context-sensitive **?** Help and **Doc** buttons where available.
 
@@ -212,6 +212,7 @@ Configure the connection to the LLM backend:
 |-------|-------------|
 | **Host URL** | The LLM server endpoint (auto-filled per server type) |
 | **Max Tokens** | Maximum token limit for LLM responses |
+| **Image Quality** | Detail level sent to the LLM for attached images: `Auto`, `Low` (faster, fewer tokens) or `High` (full resolution, more tokens) |
 | **API Key** | Authentication key (required for Claude, OpenAI, Mistral; stored in `localStorage` per server) |
 | **Model** | Dropdown populated from the server's model list (`/list_*_models` endpoint) |
 | **LLM Server** | Select among: vLLM, Ollama, LM Studio, Claude (Anthropic), OpenAI, Mistral. The **Set** button refreshes the connection and reloads the model list. |
@@ -330,6 +331,14 @@ Multi-tab textarea editor used by the agent code (and by you) as a scratchpad fo
 - Same toolbar as User Data (Load / Save / Search-Replace / Copy / Clear / 🧹 Clean All).
 - Agents typically write results here via dedicated helper functions, so the chat stays focused on the dialogue.
 
+#### Images
+
+A gallery for managing images that can be attached to multimodal conversations.
+- Add images via **Load** (local files), **🌐 URL** (remote address), or by **drag & drop**: dropping onto the gallery only stores the image; dropping onto the message box also attaches it to your next message while you keep typing.
+- Each image is referenced by a 0-based index shown on its card (`#0`, `#1`, …).
+- The **Image Quality** setting (see Settings) controls the `detail` level (`auto`, `low`, `high`) sent to the LLM for every image.
+- Agents can inject an image programmatically with `add_image_to_chat(chat, id_image, (prompt))`, optionally bundling a text prompt with the image.
+
 ---
 
 ## LLM Server Support
@@ -403,7 +412,8 @@ PREDIBAG/
 │   ├── app-sessions.js       # Session tree, save / load / archive
 │   ├── app-server.js         # LLM server selection & backend bridge
 │   ├── app-search-api.js     # Search & replace, API helpers
-│   └── app-connectors-ui.js  # Connectors (MCP) panel UI
+│   ├── app-connectors-ui.js  # Connectors (MCP) panel UI
+│   └── app-images.js         # Images gallery, drag & drop, multimodal attach
 ├── data/                     # Sample data files (JSON, LispE scripts)
 ├── docs/                     # Documentation and reference materials
 ├── scripts/                  # Auxiliary scripts
