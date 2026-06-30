@@ -449,6 +449,7 @@ agentsEditor.on('change', () => {
 
 // Built-in system functions available for 3-char autocomplete
 const builtinFunctionSuggestions = {
+    'typestr(o)': 'returns the type of an object as a string',
     'add_to_chat(chat msg (push_in) (tab))': 'Add a msg to the chat. The role is chosen according to the last role in the chat',
     'pushUserDataValue(texte)': 'Add a new User Data tab with the given value, returns tab id (e.g. "Data 5")',
     'getUserData()': 'Return a list containing all User Data field values',
@@ -1030,6 +1031,9 @@ const initDefaultCode_lib1 = `
 
 ; Default callback that prints the result to the Display zone
 (defun return_value(res) (println res))
+
+; A function to get the type of an object as a string
+(defun typestr(x) (string . type x))
 
 ; Global variables holding the current session's tools, skills, prompts and user data
 (setq  thetools ())
