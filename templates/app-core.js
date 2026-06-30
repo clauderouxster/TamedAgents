@@ -101,28 +101,62 @@
 })();
 
 // Unicode-safe base64 encode/decode (supports emojis and all Unicode)
+// Processes the byte array in chunks to avoid the O(n²) cost of building the
+// binary string one character at a time (critical for large payloads such as
+// multi-megabyte image data URLs, which would otherwise take several seconds).
 function unicodeBtoa(str) {
     const bytes = new TextEncoder().encode(str);
     let binary = '';
-    for (let i = 0; i < bytes.length; i++) {
-        binary += String.fromCharCode(bytes[i]);
+    const chunkSize = 0x8000; // 32 KB per chunk keeps the call-stack safe
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
     }
     return btoa(binary);
 }
 function unicodeAtob(base64) {
     const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
         bytes[i] = binary.charCodeAt(i);
     }
     return new TextDecoder().decode(bytes);
 }
 
+// Bridge for the chat-send pipeline: return the base64 chat payload stashed by
+// app-chat.js so LispE can fetch it via `(evaljs "getPendingChats();")` instead
+// of having it embedded (and re-lexed) inside the `(entry «...»)` source.
+function getPendingChats() {
+    return window.__pendingChats || '';
+}
+
 // LZ-String compression helpers for localStorage session data
+// Above this size, LZString.compressToUTF16 becomes very slow (several seconds
+// of synchronous UI freeze) while giving almost no gain on already-incompressible
+// payloads such as base64 image data URLs. In that case we store plain JSON
+// instead — loadAndDecompress auto-detects it (string starting with { or [).
+const COMPRESSION_SIZE_THRESHOLD = 200000;
 // Compress JSON string and store in localStorage with quota error handling
 function compressAndStore(key, jsonString) {
-    const compressed = LZString.compressToUTF16(jsonString);
-    localStorage.setItem(key, compressed);
+    try {
+        if (jsonString.length > COMPRESSION_SIZE_THRESHOLD) {
+            // Skip compression for large payloads to avoid a multi-second UI freeze.
+            localStorage.setItem(key, jsonString);
+            return;
+        }
+        const compressed = LZString.compressToUTF16(jsonString);
+        localStorage.setItem(key, compressed);
+    } catch (e) {
+        if (e && e.name === 'QuotaExceededError') {
+            // Payload too large for localStorage (e.g. a session embedding a
+            // multi-MB image). Drop the stale entry and skip persisting rather
+            // than crashing the send pipeline; the in-memory session is intact.
+            try { localStorage.removeItem(key); } catch (_) { /* ignore */ }
+            console.warn(`[session] localStorage quota exceeded for "${key}" (${(jsonString.length / 1048576).toFixed(2)}MB) — session not persisted.`);
+            return;
+        }
+        throw e;
+    }
 }
 
 // Load from localStorage and auto-detect compressed vs plain JSON (backward compatible)
@@ -448,12 +482,44 @@ function loadSessionForChat(chatTab) {
     renderChatHistory();
 }
 
+// Build a storage-safe copy of a chat history: heavy base64 `data:` URLs (uploaded
+// images and PDF-rendered pages) are NOT persisted — only a lightweight reference
+// is kept. Real http(s) image URLs are kept as-is since they are already URIs.
+// The in-memory chatHistory keeps the full data; this only affects what we write
+// to localStorage, avoiding QuotaExceededError on multi-MB images.
+function sanitizeHistoryForStorage(history) {
+    const isHeavy = (url) => typeof url === 'string' && url.startsWith('data:');
+    return (history || []).map(msg => {
+        let m = msg;
+        if (Array.isArray(msg.images) && msg.images.length > 0) {
+            m = Object.assign({}, m);
+            m.images = msg.images.map(im => {
+                if (im && isHeavy(im.src)) {
+                    // Drop the multi-MB data URL; keep metadata + a marker.
+                    return { name: im.name, isUrl: !!im.isUrl, kind: im.kind, src: '', stripped: true };
+                }
+                return im;
+            });
+        }
+        if (Array.isArray(msg.pdfParts) && msg.pdfParts.length > 0) {
+            if (m === msg) m = Object.assign({}, m);
+            m.pdfParts = msg.pdfParts.map(p => {
+                if (p && p.type === 'image_url' && p.image_url && isHeavy(p.image_url.url)) {
+                    return { type: 'image_url', image_url: { url: '', detail: p.image_url.detail }, stripped: true };
+                }
+                return p;
+            });
+        }
+        return m;
+    });
+}
+
 // Save chat session for a specific tab to localStorage
 function saveChatSessionForTab(tab) {
     const history = chatHistory[tab] || [];
     const sessionKey = llmServerSelect.value + `_chat_${tab}_current`;
     const sessionData = {
-        chatHistory: history,
+        chatHistory: sanitizeHistoryForStorage(history),
         systemPrompt: getCurrentSystemPrompt(),
         chatPrompts: allChatPrompts[tab]
     };

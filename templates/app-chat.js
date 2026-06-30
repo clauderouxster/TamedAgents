@@ -110,10 +110,15 @@ sendMessageButton.addEventListener('click', async () => {
             }
             return { role: msg.sender, content: msg.text };
         });
-    // Now call entry
+    // Now call entry.
+    // Instead of embedding the (potentially multi-MB) base64 payload directly in
+    // the LispE source `(entry «...»)`, which forces the interpreter to lex the
+    // whole literal, we stash it in a JS global and let LispE fetch it as a
+    // runtime value via `getPendingChats()` (same pattern as getImageValue).
     chats = unicodeBtoa(JSON.stringify(formattedHistory));
-    const entryCall = `(entry \u00AB${chats}\u00BB)`;
-    run_code(entryCall);
+    window.__pendingChats = chats;
+    run_code('(entry (evaljs "getPendingChats();"))');
+    window.__pendingChats = null;
     });
 
 // Permet d'envoyer un message avec la touche Entrée
