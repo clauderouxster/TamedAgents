@@ -1335,7 +1335,7 @@ function _renderAssistantContent(text) {
     return html;
 }
 
-function _createBubbleElement(text, sender, images) {
+function _createBubbleElement(text, sender, images, pdfs) {
     const messageDiv = document.createElement('div');
     messageDiv.classList.add('message-bubble');
 
@@ -1364,6 +1364,28 @@ function _createBubbleElement(text, sender, images) {
             imagesWrap.appendChild(img);
         });
         contentDiv.appendChild(imagesWrap);
+    }
+
+    // Render attached PDFs (if any) as document chips inside the bubble
+    if (Array.isArray(pdfs) && pdfs.length > 0) {
+        const pdfWrap = document.createElement('div');
+        pdfWrap.classList.add('bubble-pdfs');
+        pdfs.forEach(pd => {
+            if (!pd) return;
+            const chip = document.createElement('div');
+            chip.classList.add('bubble-pdf-chip');
+            chip.title = pd.name || 'document.pdf';
+            const icon = document.createElement('span');
+            icon.classList.add('bubble-pdf-icon');
+            icon.textContent = '📄';
+            const label = document.createElement('span');
+            label.classList.add('bubble-pdf-name');
+            label.textContent = pd.name || 'document.pdf';
+            chip.appendChild(icon);
+            chip.appendChild(label);
+            pdfWrap.appendChild(chip);
+        });
+        contentDiv.appendChild(pdfWrap);
     }
 
     messageDiv.appendChild(contentDiv);
@@ -1434,7 +1456,7 @@ function _loadOlderMessages() {
     // Build fragment with new bubbles
     const fragment = document.createDocumentFragment();
     for (let i = newStart; i < start; i++) {
-        fragment.appendChild(_createBubbleElement(history[i].text, history[i].sender, history[i].images));
+        fragment.appendChild(_createBubbleElement(history[i].text, history[i].sender, history[i].images, history[i].pdfs));
     }
 
     // Prepend before existing messages
@@ -1465,11 +1487,11 @@ messagesDisplay.addEventListener('scroll', () => {
 
 // Fonction pour ajouter un message à l'affichage du chat
 // targetTab: if provided and differs from currentChatTab, skip DOM update
-function addMessage(text, sender, targetTab, images) {
+function addMessage(text, sender, targetTab, images, pdfs) {
     const tab = targetTab || currentChatTab;
     if (tab !== currentChatTab) return;
 
-    const messageDiv = _createBubbleElement(text, sender, images);
+    const messageDiv = _createBubbleElement(text, sender, images, pdfs);
     messagesDisplay.appendChild(messageDiv);
 
     // Trim oldest bubbles from DOM if window is too large
@@ -1502,7 +1524,7 @@ function renderChatHistory() {
     }
 
     for (let i = start; i < total; i++) {
-        messagesDisplay.appendChild(_createBubbleElement(history[i].text, history[i].sender, history[i].images));
+        messagesDisplay.appendChild(_createBubbleElement(history[i].text, history[i].sender, history[i].images, history[i].pdfs));
     }
 
     messagesDisplay.scrollTop = messagesDisplay.scrollHeight;

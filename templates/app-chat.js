@@ -73,7 +73,8 @@ sendMessageButton.addEventListener('click', async () => {
     pendingPdfs.forEach(p => {
         if (p && p.src) pdfParts = pdfParts.concat(ingestPdfToParts(p.src));
     });
-    addMessage(userMessage, 'user', undefined, pendingImages); // Ajoute le message de l'utilisateur
+    const pdfMeta = pendingPdfs.map(p => ({ name: (p && p.name) ? p.name : 'document.pdf' }));
+    addMessage(userMessage, 'user', undefined, pendingImages, pdfMeta); // Ajoute le message de l'utilisateur
     if (!chatHistory[currentChatTab]) chatHistory[currentChatTab] = [];
     const userEntry = {
         sender: 'user',
@@ -81,6 +82,7 @@ sendMessageButton.addEventListener('click', async () => {
     };
     if (pendingImages.length > 0) userEntry.images = pendingImages;
     if (pdfParts.length > 0) userEntry.pdfParts = pdfParts;
+    if (pdfMeta.length > 0) userEntry.pdfs = pdfMeta;
     chatHistory[currentChatTab].push(userEntry); // Add to chat history
     markSessionModified();
     autoSaveCurrentChatSession(); // Automatic session save
