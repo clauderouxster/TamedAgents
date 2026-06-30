@@ -454,6 +454,7 @@ const builtinFunctionSuggestions = {
     'getUserData()': 'Return a list containing all User Data field values',
     'getUserDataValue(idx)': 'Return the value of a specific User Data field by index (0 = Data 0)',
     'pushOutputDataValue(texte)': 'Add a new Output tab with the given value, returns tab id (e.g. "Out 5")',
+    'resetOutputData()': 'Clear all Output tabs so the next pushOutputDataValue starts at "Out 0" (use Output like a list)',
     'setUserData(mydata)': 'Push a list of values into the User Data section',
     'setUserDataValue(idx texte)': 'Update a single User Data field by index (0 = Data 0)',
     'setOutputData(mydata)': 'Push a list of values into the Output section',
@@ -1255,6 +1256,11 @@ const initDefaultCode_lib3 = `
 (defun pushOutputDataValue(texte)
     (setq args (btoa texte))
     (evaljs (f_ "pushOutputDataValue(\`{args}\`);")))    
+
+; Clear all Output tabs so the next pushOutputDataValue starts at "Out 0"
+; Lets the Output zone be used like a list one pushes into from index 0
+(defun resetOutputData()
+    (evaljs "resetOutputData();"))
 
 ; Return a list containing all Output field values
 (defun getOutputData()

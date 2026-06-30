@@ -1346,6 +1346,21 @@ function resetOutputTabs() {
     switchOutputTab('Out 0');
 }
 
+// Clear ALL Output tabs so that the next pushOutputDataValue starts at "Out 0".
+// This lets the Output zone be used like a list one pushes into from index 0.
+function resetOutputData() {
+    outputTabsBar.querySelectorAll('.output-tab-btn').forEach(btn => btn.remove());
+    outputTabsContent.innerHTML = '';
+    Object.keys(allOutputContents).forEach(k => delete allOutputContents[k]);
+    outputTabNames.length = 0;
+    outputCounter = -1;
+    outputDeletedTabsStack.length = 0;
+    updateUndoOutputButton();
+    currentOutputTab = '';
+    markSessionModified();
+    return 'ok';
+}
+
 // Rebuild the Output zone from a base64-encoded JSON list of values
 function setOutputData(base64) {
     const items = JSON.parse(unicodeAtob(base64));
