@@ -842,6 +842,10 @@ endrule
 | \`getImageData()\` | Returns all images as a list of {"name" "src" "isUrl"} dictionaries. |
 | \`pushImageValue(img)\` | Adds an image {"name" "src" "isUrl"} to the gallery, returns its index. |
 | \`add_image_to_chat(chat, id_image, (prompt))\` | Registers image id_image into chat as a user message, with an optional text prompt (handles local base64 and URL). |
+| \`getPdfSize()\` | Returns the number of PDFs stored in the PDFs gallery. |
+| \`getPdfValue(idx)\` | Returns PDF idx as {"name" "src" "isUrl"} (src = data URL or http URL). |
+| \`getPdfData()\` | Returns all PDFs as a list of {"name" "src" "isUrl"} dictionaries. |
+| \`add_pdf_to_chat(chat, id_pdf, (prompt), (mode))\` | Ingests PDF id_pdf (from the PDFs gallery) into chat; per page text or rendered image. mode: auto\|text\|vision. |
 | \`getChatName()\` | Returns the name of the current Chat tab. |
 | \`store_session(path)\` | Stores the current session to a file on disk at the given path. |
 | \`store_data(path, data)\` | Stores a string to a file on disk at the given path. |

@@ -192,6 +192,7 @@ clearChatButton.addEventListener('click', () => {
 
     // 6c. Reset images gallery
     if (typeof resetImagesGallery === 'function') resetImagesGallery();
+    if (typeof resetPdfsGallery === 'function') resetPdfsGallery();
     if (typeof clearPendingImages === 'function') clearPendingImages();
 
     // 7. Reset agents
@@ -666,6 +667,7 @@ function buildCurrentSessionData() {
         outputDataTabNames: trimTabNames(outputTabNames, allOutputContents),
         currentOutputTab: currentOutputTab,
         imagesGallery: (typeof getAllImages === 'function') ? getAllImages() : [],
+        pdfsGallery: (typeof getAllPdfs === 'function') ? getAllPdfs() : [],
         initialization: getAllInitContents(),
         initTabNames: [...initTabNames],
         currentInitTab: currentInitTab,
@@ -1184,6 +1186,13 @@ async function loadSession(sessionName) {
             // Restore images gallery if available
             if (typeof setAllImages === 'function') {
                 setAllImages(sessionData.imagesGallery || []);
+            }
+
+            // Restore PDF gallery if available. For older sessions without a
+            // dedicated pdfsGallery, setAllImages above already migrated any
+            // legacy kind:'pdf' entries, so we must not overwrite them here.
+            if (typeof setAllPdfs === 'function' && sessionData.pdfsGallery !== undefined) {
+                setAllPdfs(sessionData.pdfsGallery || []);
             }
 
             // Restore initialization code if available

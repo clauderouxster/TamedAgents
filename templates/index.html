@@ -398,6 +398,7 @@
             <button class="rp-tab-btn" data-rpanel="panelUserData" data-group="data">📊 User Data</button>
             <button class="rp-tab-btn" data-rpanel="panelOutput" data-group="data">📤 Output</button>
             <button class="rp-tab-btn" data-rpanel="panelImages" data-group="data">🖼️ Images</button>
+            <button class="rp-tab-btn" data-rpanel="panelPdfs" data-group="data">📄 PDFs</button>
         </div>
 
         <div class="right-panel-content">
@@ -699,9 +700,27 @@
                 <p style="font-size:11px;color:var(--text-muted);margin:0 0 10px;">
                     Drag &amp; drop an image here to add it to the gallery, or into the message box to also attach it to your next message.
                     Use <code>add_image_to_chat(chat, id_image)</code> in an agent to inject an image (by index) into a chat.
-                    Drop a <strong>PDF</strong> (file or URL) to add it to this gallery; use <code>add_pdf_to_prompt(chat, source)</code> or <code>load_pdf(source)</code> in an agent to ingest it (text or vision, decided at processing time).
+                    <strong>PDFs</strong> now live in their own <strong>PDFs</strong> section (next to Images).
                 </p>
                 <div id="imagesGallery" class="images-gallery"></div>
+            </div>
+
+            <!-- ===== PDFs ===== -->
+            <div id="panelPdfs" class="panel-section">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <span class="section-label" style="margin:0;">PDFs</span>
+                    <div style="display:flex;gap:6px;">
+                        <button id="loadPdfFileButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">Load</button>
+                        <button id="addPdfUrlButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;" title="Add a PDF by URL">🌐 URL</button>
+                        <button id="clearPdfsButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;" title="Remove all PDFs">🗑️</button>
+                    </div>
+                    <input type="file" id="pdfFileInput" class="hidden" accept="application/pdf,.pdf" multiple>
+                </div>
+                <p style="font-size:11px;color:var(--text-muted);margin:0 0 10px;">
+                    Drag &amp; drop a <strong>PDF</strong> (file or URL) here to add it to this gallery.
+                    Use <code>add_pdf_to_chat(chat, id_pdf)</code> in an agent to ingest a stored PDF (by index) into a chat; the text/vision decision is made at processing time.
+                </p>
+                <div id="pdfsGallery" class="images-gallery"></div>
             </div>
 
             <!-- ===== TOOLS ===== -->

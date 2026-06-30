@@ -741,6 +741,7 @@ const panelTitles = {
     panelUserData: '📊 User Data',
     panelOutput: '📤 Output',
     panelImages: '🖼️ Images',
+    panelPdfs: '📄 PDFs',
     panelTools: '🔧 Tools',
     panelConsole: '🖥️ Console',
     panelInit: '⚡ Core',
@@ -752,7 +753,7 @@ const panelTitles = {
 const panelGroups = {
     prompts: ['panelPrompts', 'panelSkills', 'panelTools', 'panelConnectors'],
     code: ['panelAgents', 'panelConsole', 'panelInit'],
-    data: ['panelUserData', 'panelOutput', 'panelImages']
+    data: ['panelUserData', 'panelOutput', 'panelImages', 'panelPdfs']
 };
 
 // Toggle left sidebar
@@ -809,7 +810,7 @@ function openRightPanel(sectionId) {
     const rpDocBtn = document.getElementById('rpDocBtn');
     const helpMap = {
         panelPrompts: 'prompts', panelSkills: 'skills', panelUserData: 'userdata',
-        panelOutput: 'output', panelImages: 'images', panelTools: 'tools', panelAgents: 'agents', panelConnectors: 'connectors',
+        panelOutput: 'output', panelImages: 'images', panelPdfs: 'pdfs', panelTools: 'tools', panelAgents: 'agents', panelConnectors: 'connectors',
         panelConsole: 'console', panelInit: 'init'
     };
     const docMap = { panelAgents: 'agents', panelConsole: 'console' };

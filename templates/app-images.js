@@ -69,10 +69,20 @@ function getAllImages() {
 
 // Replace the whole gallery (used when loading a session).
 function setAllImages(items) {
-    imageItems = Array.isArray(items)
-        ? items.map(it => ({ name: it.name, src: it.src, isUrl: !!it.isUrl, kind: (it.kind === 'pdf') ? 'pdf' : 'image' }))
-        : [];
+    const all = Array.isArray(items) ? items : [];
+    // Backward compatibility: older sessions stored PDFs in the images gallery
+    // with kind 'pdf'. Migrate those into the dedicated PDF gallery.
+    const migratedPdfs = all
+        .filter(it => it && it.kind === 'pdf')
+        .map(it => ({ name: it.name, src: it.src, isUrl: !!it.isUrl }));
+    imageItems = all
+        .filter(it => it && it.kind !== 'pdf')
+        .map(it => ({ name: it.name, src: it.src, isUrl: !!it.isUrl, kind: 'image' }));
     renderImagesGallery();
+    if (migratedPdfs.length > 0 && typeof setAllPdfs === 'function') {
+        // Merge migrated PDFs with any already loaded for this session.
+        setAllPdfs(getAllPdfs().concat(migratedPdfs));
+    }
 }
 
 // ---- Rendering ------------------------------------------------------------
@@ -151,8 +161,8 @@ let pendingChatImages = [];
 
 // PDFs dropped onto the message box: shown as a chip for visual feedback.
 // They are NOT auto-sent (the text/vision decision is made at processing time
-// via add_pdf_to_prompt / load_pdf). The PDF itself is stored in the Images
-// gallery (kind 'pdf'); the chip keeps the gallery index so its bytes/URL can
+// via add_pdf_to_chat / load_pdf). The PDF itself is stored in the dedicated
+// PDF gallery (pdfItems); the chip keeps the PDF index so its bytes/URL can
 // be resolved at send time.
 let pendingChatPdfs = [];
 
@@ -202,9 +212,9 @@ function clearPendingImages() {
 
 // Stage the PDF gallery item at the given index onto the message box.
 function integratePdfIntoCurrentChat(index) {
-    if (index < 0 || index >= imageItems.length) return;
-    const item = imageItems[index];
-    if (!item || item.kind !== 'pdf') return;
+    if (index < 0 || index >= pdfItems.length) return;
+    const item = pdfItems[index];
+    if (!item) return;
     stagePendingPdf({ name: item.name, isUrl: item.isUrl, index: index });
 }
 
@@ -231,12 +241,11 @@ function getPendingPdfsCount() {
 
 // Return (and detach) the PDFs staged on the message box, resolved to their
 // source (data URL for a local file, http(s) URL / path for a remote one) so
-// they can be ingested at send time. The source is read from the Images
-// gallery item referenced by the chip's index.
+// they can be ingested at send time. The source is read from the PDF gallery
+// item referenced by the chip's index.
 function takePendingPdfs() {
     const out = pendingChatPdfs.map(p => {
-        const it = (p.index != null && imageItems[p.index] && imageItems[p.index].kind === 'pdf')
-            ? imageItems[p.index] : null;
+        const it = (p.index != null && pdfItems[p.index]) ? pdfItems[p.index] : null;
         return { name: p.name, isUrl: !!p.isUrl, src: it ? it.src : '' };
     });
     pendingChatPdfs = [];
@@ -343,47 +352,136 @@ function pushImageValue(base64json) {
 // ===========================================================================
 // PDF STORE
 // ---------------------------------------------------------------------------
-// PDFs dropped from disk or added by URL/path are stored in the Images gallery
-// (imageItems) with kind 'pdf'. Each entry is { name, src, isUrl, kind } where
-// src is a base64 data URL (local file) or an http(s) URL / path (remote).
-// The bytes/URL stay in the gallery so an agent can ingest them at processing
-// time via add_pdf_to_prompt / load_pdf. The decision of sending text vs image
-// is made by the backend at processing time.
+// PDFs dropped from disk or added by URL/path are stored in their own gallery
+// (pdfItems), independent from the Images gallery. Each entry is
+// { name, src, isUrl } where src is a base64 data URL (local file) or an
+// http(s) URL / path (remote). The bytes/URL stay in the gallery so an agent
+// can ingest them at processing time via add_pdf_to_chat / load_pdf. The
+// decision of sending text vs image is made by the backend at
+// processing time.
 // ===========================================================================
 
-// Add a PDF to the Images gallery. Returns its gallery index.
+let pdfItems = [];
+
+// Add a PDF to the PDF gallery. Returns its index.
+// If an item with the same name already exists, it is refreshed in place.
 function addPdfItem(name, src, isUrl) {
-    return addImageItem(name || `pdf_${imageItems.length}`, src, isUrl, 'pdf');
+    const theName = name || `pdf_${pdfItems.length}`;
+    const existing = pdfItems.findIndex(it => it.name === theName);
+    if (existing !== -1) {
+        pdfItems[existing].src = src;
+        pdfItems[existing].isUrl = !!isUrl;
+        renderPdfsGallery();
+        if (typeof markSessionModified === 'function') markSessionModified();
+        return existing;
+    }
+    pdfItems.push({ name: theName, src: src, isUrl: !!isUrl });
+    renderPdfsGallery();
+    if (typeof markSessionModified === 'function') markSessionModified();
+    return pdfItems.length - 1;
 }
 
-// Return only the PDF entries of the gallery (preserving relative order).
-function getPdfGalleryItems() {
-    return imageItems.filter(it => it.kind === 'pdf');
-}
-
-function clearPdfStore() {
-    imageItems = imageItems.filter(it => it.kind !== 'pdf');
-    renderImagesGallery();
+// Remove a PDF by index.
+function removePdfItem(index) {
+    if (index < 0 || index >= pdfItems.length) return;
+    pdfItems.splice(index, 1);
+    renderPdfsGallery();
     if (typeof markSessionModified === 'function') markSessionModified();
 }
 
+// Remove every PDF from the gallery.
+function clearPdfStore() {
+    pdfItems = [];
+    renderPdfsGallery();
+    if (typeof markSessionModified === 'function') markSessionModified();
+}
+
+// Reset to an empty gallery (used by the global Reset button).
+function resetPdfsGallery() {
+    pdfItems = [];
+    renderPdfsGallery();
+}
+
+// Return a shallow copy of all PDFs (for session persistence).
 function getAllPdfs() {
-    return getPdfGalleryItems().map(it => ({ name: it.name, src: it.src, isUrl: it.isUrl }));
+    return pdfItems.map(it => ({ name: it.name, src: it.src, isUrl: it.isUrl }));
+}
+
+// Replace the whole PDF gallery (used when loading a session).
+function setAllPdfs(items) {
+    pdfItems = Array.isArray(items)
+        ? items.map(it => ({ name: it.name, src: it.src, isUrl: !!it.isUrl }))
+        : [];
+    renderPdfsGallery();
+}
+
+// ---- Rendering ------------------------------------------------------------
+
+function renderPdfsGallery() {
+    const gallery = document.getElementById('pdfsGallery');
+    if (!gallery) return;
+    gallery.innerHTML = '';
+
+    if (pdfItems.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'images-gallery-empty';
+        empty.textContent = 'No PDF yet. Drag & drop a PDF file or URL here.';
+        gallery.appendChild(empty);
+        return;
+    }
+
+    pdfItems.forEach((item, index) => {
+        const card = document.createElement('div');
+        card.className = 'image-card';
+
+        const thumb = document.createElement('div');
+        thumb.className = 'image-thumb image-thumb-pdf';
+        thumb.title = item.name;
+        thumb.textContent = '📄';
+
+        const meta = document.createElement('div');
+        meta.className = 'image-meta';
+        meta.innerHTML = `<span class="image-index">#${index}</span>`
+            + `<span class="image-name" title="${item.name}">${item.name}</span>`
+            + `<span class="image-kind">${item.isUrl ? 'URL' : 'local'}</span>`;
+
+        const actions = document.createElement('div');
+        actions.className = 'image-actions';
+
+        const attachBtn = document.createElement('button');
+        attachBtn.className = 'image-action-btn';
+        attachBtn.title = 'Attach to current chat';
+        attachBtn.textContent = '➕';
+        attachBtn.addEventListener('click', () => integratePdfIntoCurrentChat(index));
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'image-action-btn';
+        delBtn.title = 'Remove PDF';
+        delBtn.textContent = '🗑️';
+        delBtn.addEventListener('click', () => removePdfItem(index));
+
+        actions.appendChild(attachBtn);
+        actions.appendChild(delBtn);
+
+        card.appendChild(thumb);
+        card.appendChild(meta);
+        card.appendChild(actions);
+        gallery.appendChild(card);
+    });
 }
 
 // ---- PDF JS <-> LispE bridge ----------------------------------------------
 
 function getPdfSize() {
-    return getPdfGalleryItems().length;
+    return pdfItems.length;
 }
 
 function getPdfValue(idx) {
     const i = parseInt(idx, 10);
-    const pdfs = getPdfGalleryItems();
-    if (isNaN(i) || i < 0 || i >= pdfs.length) {
+    if (isNaN(i) || i < 0 || i >= pdfItems.length) {
         return unicodeBtoa(JSON.stringify({ name: '', src: '', isUrl: false, error: `Invalid pdf index: ${idx}` }));
     }
-    const it = pdfs[i];
+    const it = pdfItems[i];
     return unicodeBtoa(JSON.stringify({ name: it.name, src: it.src, isUrl: it.isUrl }));
 }
 
@@ -400,7 +498,7 @@ function pushPdfValue(base64json) {
     }
 }
 
-// Load PDF files (from a drop or file picker) into the Images gallery as data URLs.
+// Load PDF files (from a drop or file picker) into the PDF gallery as data URLs.
 function loadPdfFiles(fileList, integrate) {
     const files = Array.from(fileList || []).filter(
         f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name || ''));
@@ -531,4 +629,41 @@ function attachImageDropZone(zone, integrate) {
 
     renderImagesGallery();
     renderPendingPreview();
+})();
+
+// ---- PDF panel UI wiring ---------------------------------------------------
+
+(function setupPdfsUI() {
+    const fileInput = document.getElementById('pdfFileInput');
+    const loadBtn = document.getElementById('loadPdfFileButton');
+    const urlBtn = document.getElementById('addPdfUrlButton');
+    const clearBtn = document.getElementById('clearPdfsButton');
+
+    if (loadBtn && fileInput) {
+        loadBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', () => {
+            loadPdfFiles(fileInput.files, false);
+            fileInput.value = '';
+        });
+    }
+
+    if (urlBtn) {
+        urlBtn.addEventListener('click', () => {
+            const url = prompt('PDF URL:');
+            if (url && url.trim()) {
+                const trimmed = url.trim();
+                const name = trimmed.split('/').pop().split('?')[0] || 'document.pdf';
+                addPdfItem(name, trimmed, true);
+            }
+        });
+    }
+
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => clearPdfStore());
+    }
+
+    // Drag & drop onto the PDFs section (gallery only, no chat).
+    attachImageDropZone(document.getElementById('panelPdfs'), false);
+
+    renderPdfsGallery();
 })();

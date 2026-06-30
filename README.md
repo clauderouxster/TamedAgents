@@ -354,7 +354,7 @@ Agents can manipulate gallery content programmatically:
 | `getImageSize()` / `getImageValue(idx)` / `getImageData()` | Inspect stored images (`{name, src, isUrl}`) |
 | `add_image_to_chat(chat, id_image, prompt?)` | Inject image `id_image` into a chat as a user message, optionally bundling a text prompt |
 | `getPdfSize()` / `getPdfValue(idx)` / `getPdfData()` | Inspect stored PDFs (`{name, src, isUrl}`) |
-| `add_pdf_to_prompt(chat, source, prompt?, mode?)` | Ingest a PDF (disk path, http(s) URL or base64 data URL) and append its content to a chat. Per page the backend sends extracted text or a rendered image. `mode` = `auto` / `text` / `vision` |
+| `add_pdf_to_chat(chat, id_pdf, prompt?, mode?)` | Ingest a PDF stored in the PDFs section (by 0-based index) and append its content to a chat. Per page the backend sends extracted text or a rendered image. `mode` = `auto` / `text` / `vision` |
 | `load_pdf(source, mode?)` | Synchronously analyse a PDF and **return** a list of LLM content parts (text and/or `image_url`) without touching any chat |
 
 PDF ingestion is handled by the backend `/pdf_ingest` endpoint (PyMuPDF): `text` extracts each page's selectable text, `vision` renders each page to an image, and `auto` decides per page.

@@ -723,7 +723,7 @@ The **Images** panel is a single gallery holding both images and PDFs. Each entr
 | `getPdfSize()` | Return the number of stored PDFs |
 | `getPdfValue(idx)` | Return stored PDF `idx` as `{name, src, isUrl}` |
 | `getPdfData()` | Return all stored PDFs as a list of `{name, src, isUrl}` |
-| `add_pdf_to_prompt(chat, source, prompt?, mode?)` | Ingest a PDF (disk path, http(s) URL or base64 data URL) and append its content to `chat`; per page the backend sends extracted text or a rendered page image. `mode` = `auto` / `text` / `vision` |
+| `add_pdf_to_chat(chat, id_pdf, prompt?, mode?)` | Ingest a PDF stored in the PDFs section (by 0-based index) and append its content to `chat`; per page the backend sends extracted text or a rendered page image. `mode` = `auto` / `text` / `vision` |
 | `load_pdf(source, mode?)` | Synchronously analyse a PDF and return a list of LLM content parts (text and/or `image_url`) without touching any chat. `mode` = `auto` / `text` / `vision` |
 
 PDF ingestion relies on the backend `/pdf_ingest` endpoint (PyMuPDF): `text` extracts page text, `vision` renders each page to an image, `auto` decides per page.

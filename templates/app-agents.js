@@ -504,7 +504,7 @@ const builtinFunctionSuggestions = {
     'load_data(path)': 'Load a file from disk and return its content',
     'eval_python(code)': 'Evaluate Pythonic code: compile to LispE then execute synchronously',
     'eval_code(code)': 'Evaluate a LispE code string in a fresh dedicated interpreter',
-    'add_pdf_to_prompt(chat source (prompt) (mode))': 'Ingest a PDF (disk path, http(s) URL or base64 data URL) and append its content to a chat; per page the backend sends extracted text or a rendered image. mode: auto|text|vision',
+    'add_pdf_to_chat(chat id_pdf (prompt) (mode))': 'Ingest a PDF stored in the PDF section (by 0-based index) into a chat; per page the backend sends extracted text or a rendered image. mode: auto|text|vision',
     'load_pdf(source (mode))': 'Synchronously analyse a PDF (disk path, http(s) URL or base64 data URL) and return a list of LLM content parts (text and/or image_url), without touching any chat. mode: auto|text|vision',
     'getPdfSize()': 'Return the number of stored PDFs (dropped or added by URL/path)',
     'getPdfValue(idx)': 'Return a stored PDF as a dict {name, src, isUrl}',
@@ -1306,7 +1306,7 @@ const initDefaultCode_lib3 = `
 
 ; Return a specific stored PDF as a dictionary {"name":.. "src":.. "isUrl":..}
 ; src is a base64 data URL for a dropped local PDF, or an http(s) URL / path
-; reference for a remote one. Pass src to add_pdf_to_prompt for processing.
+; reference for a remote one. Pass its index to add_pdf_to_chat for processing.
 (defun getPdfValue(idx)
     (json_parse (atob . evaljs (f_ "getPdfValue({idx});"))))
 
@@ -1445,33 +1445,40 @@ const initDefaultCode_lib5 = `
 (defun eval_code(code)
    (evaljs (+ "evalLispECode(\`" (btoa code) "\`);")))
 
-; Analyse a PDF and append its content to the given chat as a single user
-; message. 'source' is a disk path, an http(s) URL, or a base64 data URL
-; (e.g. the "src" of a stored/dropped PDF via getPdfValue). The backend decides,
-; page by page, whether to send extracted text or a rendered image (vision),
-; according to 'mode' ("auto" | "text" | "vision", default "auto"). An optional
-; text prompt is added first. Returns the updated chat.
-(defun add_pdf_to_prompt(chat source (prompt) (mode))
+; Ingest a PDF stored in the PDF section (by its 0-based index) into the given
+; chat as a single user message. The PDF source is resolved from the dedicated
+; PDF gallery via getPdfValue. The backend decides, page by page, whether to
+; send extracted text or a rendered image (vision), according to 'mode'
+; ("auto" | "text" | "vision", default "auto"). An optional text prompt is
+; added first. Returns the updated chat.
+(defun add_pdf_to_chat(chat id_pdf (prompt) (mode))
    (if (nullp mode) (setq mode "auto"))
-   (setq spec (dictionary "source" source "kind" "auto" "mode" mode "dpi" 150))
-   (setq res (json_parse (atob (evaljs (f_ "pdf_ingest_sync(\`{btoa . json spec}\`);")))))
-   (if (neq (@ res "status") "success")
+   (setq pdf (getPdfValue id_pdf))
+   (setq source (@ pdf "src"))
+   (if (eq source "")
       chat
       (block
-         (setq content ())
-         (if (and prompt (neq prompt ""))
-            (push content (dictionary "type" "text" "text" prompt))
-         )
-         (setq detail (getImageDetail))
-         (loop item (@ res "items")
-            (if (eq (@ item "kind") "text")
-               (push content (dictionary "type" "text" "text" (@ item "text")))
-               (push content (dictionary "type" "image_url"
-                                         "image_url" (dictionary "url" (@ item "src") "detail" detail)))
+         (setq spec (dictionary "source" source "kind" "auto" "mode" mode "dpi" 150))
+         (setq res (json_parse (atob (evaljs (f_ "pdf_ingest_sync(\`{btoa . json spec}\`);")))))
+         (if (neq (@ res "status") "success")
+            chat
+            (block
+               (setq content ())
+               (if (and prompt (neq prompt ""))
+                  (push content (dictionary "type" "text" "text" prompt))
+               )
+               (setq detail (getImageDetail))
+               (loop item (@ res "items")
+                  (if (eq (@ item "kind") "text")
+                     (push content (dictionary "type" "text" "text" (@ item "text")))
+                     (push content (dictionary "type" "image_url"
+                                               "image_url" (dictionary "url" (@ item "src") "detail" detail)))
+                  )
+               )
+               (push chat (dictionary "role" "user" "content" content))
+               chat
             )
          )
-         (push chat (dictionary "role" "user" "content" content))
-         chat
       )
    )
 )
