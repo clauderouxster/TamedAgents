@@ -33,6 +33,12 @@ The key idea behind Tamed Agents is that **agent behavior is defined in code** (
 ### Python Dependencies
 
 ```bash
+pip install -r requirements.txt
+```
+
+Or install the packages individually:
+
+```bash
 pip install fastapi uvicorn requests fastmcp duckduckgo-search feedparser pymupdf
 ```
 

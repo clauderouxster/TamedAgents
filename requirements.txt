@@ -1,0 +1,10 @@
+# Tamed Agents — Python dependencies
+# Install with:  pip install -r requirements.txt
+
+fastapi              # Web framework serving the backend API
+uvicorn              # ASGI server to run the FastAPI application
+requests             # HTTP client used by the LLM connector modules
+fastmcp              # Client used by the MCP connector proxy
+duckduckgo-search    # Optional, used by the built-in web search tool
+feedparser           # Parses RSS/Atom feeds for the /fetch_feed endpoint
+pymupdf              # Optional, used by the /pdf_ingest endpoint (PDF text extraction & page rendering)
