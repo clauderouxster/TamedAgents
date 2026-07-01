@@ -1236,6 +1236,86 @@ body.chat-input-resizing {
     box-shadow: 0 8px 32px rgba(0,0,0,0.25);
 }
 
+/* Markdown rendering for the Help description preview.
+   Tailwind's Preflight strips default element styling, so we
+   restore headings/lists/code/table formatting here. */
+#helpDescriptionPreview {
+    color: var(--text-primary);
+    font-size: 14px;
+    line-height: 1.6;
+    word-wrap: break-word;
+}
+#helpDescriptionPreview h1,
+#helpDescriptionPreview h2,
+#helpDescriptionPreview h3,
+#helpDescriptionPreview h4,
+#helpDescriptionPreview h5,
+#helpDescriptionPreview h6 {
+    font-weight: 600;
+    line-height: 1.25;
+    margin: 1em 0 0.5em;
+    color: var(--text-primary);
+}
+#helpDescriptionPreview h1 { font-size: 1.6em; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3em; }
+#helpDescriptionPreview h2 { font-size: 1.35em; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3em; }
+#helpDescriptionPreview h3 { font-size: 1.15em; }
+#helpDescriptionPreview h4 { font-size: 1em; }
+#helpDescriptionPreview p { margin: 0 0 0.85em; }
+#helpDescriptionPreview ul,
+#helpDescriptionPreview ol {
+    margin: 0 0 0.85em;
+    padding-left: 1.8em;
+}
+#helpDescriptionPreview ul { list-style: disc; }
+#helpDescriptionPreview ol { list-style: decimal; }
+#helpDescriptionPreview li { margin: 0.2em 0; }
+#helpDescriptionPreview li > ul,
+#helpDescriptionPreview li > ol { margin: 0.2em 0; }
+#helpDescriptionPreview a { color: var(--accent, #3b82f6); text-decoration: underline; }
+#helpDescriptionPreview code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.88em;
+    background: var(--bg-elevated);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+}
+#helpDescriptionPreview pre {
+    background: var(--bg-elevated);
+    padding: 10px 12px;
+    border-radius: 6px;
+    overflow: auto;
+    margin: 0 0 0.85em;
+}
+#helpDescriptionPreview pre code {
+    background: none;
+    padding: 0;
+    font-size: 0.85em;
+}
+#helpDescriptionPreview blockquote {
+    margin: 0 0 0.85em;
+    padding: 0.2em 1em;
+    border-left: 3px solid var(--border-color);
+    color: var(--text-secondary);
+}
+#helpDescriptionPreview hr {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 1em 0;
+}
+#helpDescriptionPreview table {
+    border-collapse: collapse;
+    margin: 0 0 0.85em;
+    width: auto;
+}
+#helpDescriptionPreview th,
+#helpDescriptionPreview td {
+    border: 1px solid var(--border-color);
+    padding: 6px 10px;
+    text-align: left;
+}
+#helpDescriptionPreview th { background: var(--bg-elevated); font-weight: 600; }
+#helpDescriptionPreview img { max-width: 100%; height: auto; }
+
 .recap-resize-se {
     position: absolute;
     right: 0;

@@ -1314,6 +1314,7 @@ if (closeDisplayZoneBtn) {
 
     function openHelp() {
         helpZone.style.display = 'flex';
+        setPreview(true);
         localStorage.setItem('ta_helpzone_visible', 'true');
     }
     function closeHelp() {
@@ -1321,10 +1322,13 @@ if (closeDisplayZoneBtn) {
         localStorage.setItem('ta_helpzone_visible', 'false');
     }
 
-    toggleHelpBtn.addEventListener('click', () => {
+    function toggleHelp() {
         if (helpZone.style.display === 'none' || helpZone.style.display === '') openHelp();
         else closeHelp();
-    });
+    }
+    toggleHelpBtn.addEventListener('click', toggleHelp);
+    const toggleHelpBtnBottom = document.getElementById('toggleHelpZoneBottom');
+    if (toggleHelpBtnBottom) toggleHelpBtnBottom.addEventListener('click', toggleHelp);
     if (closeHelpBtn) closeHelpBtn.addEventListener('click', closeHelp);
     if (applyHelpBtn) applyHelpBtn.addEventListener('click', applyHint);
     if (previewBtn) previewBtn.addEventListener('click', () => setPreview(!previewMode));
