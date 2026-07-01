@@ -1812,31 +1812,39 @@ const chatActiveAgentField = document.getElementById('chatActiveAgentField');
 const chatActiveAgentInput = document.getElementById('chatActiveAgentInput');
 const chatActiveAgentName = document.getElementById('chatActiveAgentName');
 
-// Reflect the current active agent (currentAgentTab) into the number field
+// Rebuild the <option> list of a select to match the current agent tabs
+function populateAgentSelect(select) {
+    if (!select) return;
+    const current = select.value;
+    select.innerHTML = '';
+    agentTabNames.forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        select.appendChild(opt);
+    });
+    // Restore a valid selection
+    if (agentTabNames.indexOf(current) >= 0) select.value = current;
+}
+
+// Reflect the current active agent (currentAgentTab) into the selectors
 function syncActiveAgentField() {
-    const idx = agentTabNames.indexOf(currentAgentTab);
-    const maxIdx = Math.max(0, agentTabNames.length - 1);
     if (activeAgentInput) {
-        if (idx >= 0) activeAgentInput.value = idx;
-        activeAgentInput.max = maxIdx;
+        populateAgentSelect(activeAgentInput);
+        if (agentTabNames.indexOf(currentAgentTab) >= 0) activeAgentInput.value = currentAgentTab;
     }
     // Mirror into the control shown under the message box
     if (chatActiveAgentField) chatActiveAgentField.style.display = agentMergeMode ? 'none' : 'flex';
     if (chatActiveAgentInput) {
-        if (idx >= 0) chatActiveAgentInput.value = idx;
-        chatActiveAgentInput.max = maxIdx;
+        populateAgentSelect(chatActiveAgentInput);
+        if (agentTabNames.indexOf(currentAgentTab) >= 0) chatActiveAgentInput.value = currentAgentTab;
     }
-    if (chatActiveAgentName) chatActiveAgentName.textContent = currentAgentTab || '';
 }
 
-// Change the active agent from an index (used by both number inputs)
-function setActiveAgentByIndex(rawValue) {
-    let idx = parseInt(rawValue, 10);
-    if (isNaN(idx)) idx = 0;
-    idx = Math.max(0, Math.min(idx, agentTabNames.length - 1));
-    const targetName = agentTabNames[idx];
-    if (targetName && targetName !== currentAgentTab) {
-        switchAgentTab(targetName);
+// Change the active agent from a selected agent name (used by both selectors)
+function setActiveAgentByName(name) {
+    if (agentTabNames.indexOf(name) >= 0 && name !== currentAgentTab) {
+        switchAgentTab(name);
     } else {
         syncActiveAgentField();
     }
@@ -1860,13 +1868,13 @@ if (agentMergeCheckbox) {
 
 if (activeAgentInput) {
     activeAgentInput.addEventListener('change', () => {
-        setActiveAgentByIndex(activeAgentInput.value);
+        setActiveAgentByName(activeAgentInput.value);
     });
 }
 
 if (chatActiveAgentInput) {
     chatActiveAgentInput.addEventListener('change', () => {
-        setActiveAgentByIndex(chatActiveAgentInput.value);
+        setActiveAgentByName(chatActiveAgentInput.value);
     });
 }
 

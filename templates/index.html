@@ -395,8 +395,7 @@
                 <span style="flex:1;"></span>
                 <div id="chatActiveAgentField" style="display:none;align-items:center;gap:4px;font-size:0.85em;color:var(--text-secondary);">
                     <label style="margin:0;">Active Agent</label>
-                    <input type="number" id="chatActiveAgentInput" min="0" value="0" style="width:56px;font-size:0.95em;padding:2px 6px;border:1px solid var(--border-color);border-radius:4px;background:var(--bg-input,#fff);color:var(--text-primary);" title="Index of the active agent (0..n)">
-                    <span id="chatActiveAgentName" style="font-size:0.95em;"></span>
+                    <select id="chatActiveAgentInput" style="font-size:0.95em;padding:2px 6px;border:1px solid var(--border-color);border-radius:4px;background:var(--bg-input,#fff);color:var(--text-primary);" title="Select the active agent"></select>
                 </div>
                 <span style="flex:1;"></span>
                 <button id="clearCurrentChatButton" class="action-btn danger" title="Delete current chat tab" style="font-size:0.85em;background:#dc2626;color:white;border-radius:4px;padding:2px 6px;">🗑</button>
@@ -821,8 +820,7 @@
                             <input type="checkbox" id="agentMergeCheckbox" checked> merge
                         </label>
                         <div id="activeAgentField" style="display:none;align-items:center;gap:4px;">
-                            <label style="font-size:11px;color:var(--text-secondary);">active agent</label>
-                            <input type="number" id="activeAgentInput" class="dark-input" min="0" value="0" style="width:60px;font-size:11px;padding:2px 6px;" title="Index of the active agent (0..n)">
+                            <select id="activeAgentInput" class="dark-input" style="font-size:11px;padding:2px 6px;" title="Select the active agent"></select>
                         </div>
                     </div>
                     <div style="display:flex;gap:6px;">
