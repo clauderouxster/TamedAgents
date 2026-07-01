@@ -10,6 +10,10 @@ let agentTabNames = ['Agent 0', 'Agent 1', 'Agent 2', 'Agent 3', 'Agent 4'];
 let currentAgentTab = 'Agent 0';
 let agentCounter = 4;
 
+// Merge mode: when true (default) all agent tabs are merged into a single code.
+// When false, only the "active agent" (currentAgentTab) is compiled / executed.
+let agentMergeMode = true;
+
 // Store agent content per tab
 const allAgentContents = {};
 agentTabNames.forEach(name => { allAgentContents[name] = ''; });
@@ -616,6 +620,11 @@ function saveCurrentAgentToMemory() {
         // Don't save compiled output back as source
         if (!agentViewingCompiled[currentAgentTab]) {
             const newContent = agentsEditor.getValue();
+            // In Active Agent mode we display the default init code for an empty
+            // tab; if it was left untouched, keep the tab empty (don't persist it).
+            if (!agentMergeMode && (allAgentContents[currentAgentTab] || '') === '' && newContent === pythonDefaultCode) {
+                return;
+            }
             // Invalidate cache if content changed
             if (allAgentContents[currentAgentTab] !== newContent) {
                 delete agentCompiledCache[currentAgentTab];
@@ -648,11 +657,16 @@ function switchAgentTab(tabName, skipSave = false) {
         if (agentViewingCompiled[tabName] && agentCompiledCache[tabName]) {
             agentsEditor.setValue(agentCompiledCache[tabName]);
         } else {
-            agentsEditor.setValue(allAgentContents[tabName] || '');
+            let val = allAgentContents[tabName] || '';
+            // In Active Agent mode, show the default init code for an empty tab
+            if (!val && !agentMergeMode) val = pythonDefaultCode;
+            agentsEditor.setValue(val);
         }
     }
     // Update Basic mode UI for the new tab
     updateBasicModeUI();
+    // Keep the "active agent" field in sync when merge mode is off
+    if (typeof syncActiveAgentField === 'function') syncActiveAgentField();
 }
 
 // Attach click listeners to initial agent tabs
@@ -729,10 +743,15 @@ function getAllAgentModes() {
 async function getMergedAgentsCodeAsync() {
     saveCurrentAgentToMemory();
     const parts = [];
-    for (const name of agentTabNames) {
-        const code = (allAgentContents[name] || '').trim();
-        if (!code) continue;
-        const mode = agentModes[name] || 'lispe';
+    const names = agentMergeMode ? agentTabNames : [currentAgentTab];
+    for (const name of names) {
+        let code = (allAgentContents[name] || '').trim();
+        let mode = agentModes[name] || 'lispe';
+        if (!code) {
+            // In Active Agent mode, an empty agent falls back to the default init code
+            if (!agentMergeMode) { code = pythonDefaultCode.trim(); mode = 'python'; }
+            else continue;
+        }
         if (mode === 'basic' || mode === 'python') {
             // Compile to LispE using secondary interpreter (for preview)
             const loaded = await loadBasicTranspilerFiles();
@@ -757,10 +776,15 @@ async function getMergedAgentsCodeAsync() {
 // Returns true if all compilations succeeded, false otherwise
 function compileAllBasicTabs() {
     saveCurrentAgentToMemory();
-    for (const name of agentTabNames) {
-        const code = (allAgentContents[name] || '').trim();
-        if (!code) continue;
-        const mode = agentModes[name] || 'lispe';
+    const names = agentMergeMode ? agentTabNames : [currentAgentTab];
+    for (const name of names) {
+        let code = (allAgentContents[name] || '').trim();
+        let mode = agentModes[name] || 'lispe';
+        if (!code) {
+            // In Active Agent mode, an empty agent falls back to the default init code
+            if (!agentMergeMode) { code = pythonDefaultCode.trim(); mode = 'python'; }
+            else continue;
+        }
         if (mode === 'basic' || mode === 'python') {
             try {
                 const encoded = unicodeBtoa(code);
@@ -786,10 +810,15 @@ function compileAllBasicTabs() {
 function getMergedAgentsCode() {
     saveCurrentAgentToMemory();
     const parts = [];
-    for (const name of agentTabNames) {
-        const code = (allAgentContents[name] || '').trim();
-        if (!code) continue;
-        const mode = agentModes[name] || 'lispe';
+    const names = agentMergeMode ? agentTabNames : [currentAgentTab];
+    for (const name of names) {
+        let code = (allAgentContents[name] || '').trim();
+        let mode = agentModes[name] || 'lispe';
+        if (!code) {
+            // In Active Agent mode, an empty agent falls back to the default init code
+            if (!agentMergeMode) { code = pythonDefaultCode.trim(); mode = 'python'; }
+            else continue;
+        }
         if (mode === 'basic' || mode === 'python') {
             if (agentCompiledCache[name]) {
                 parts.push(agentCompiledCache[name]);
@@ -1774,3 +1803,79 @@ setAgentsButton.addEventListener('click', async () => {
         showModal('Agents Set error: ' + e.message, false);
     }
 });
+
+// ===== MERGE MODE / ACTIVE AGENT SELECTION =====
+const agentMergeCheckbox = document.getElementById('agentMergeCheckbox');
+const activeAgentField = document.getElementById('activeAgentField');
+const activeAgentInput = document.getElementById('activeAgentInput');
+const chatActiveAgentField = document.getElementById('chatActiveAgentField');
+const chatActiveAgentInput = document.getElementById('chatActiveAgentInput');
+const chatActiveAgentName = document.getElementById('chatActiveAgentName');
+
+// Reflect the current active agent (currentAgentTab) into the number field
+function syncActiveAgentField() {
+    const idx = agentTabNames.indexOf(currentAgentTab);
+    const maxIdx = Math.max(0, agentTabNames.length - 1);
+    if (activeAgentInput) {
+        if (idx >= 0) activeAgentInput.value = idx;
+        activeAgentInput.max = maxIdx;
+    }
+    // Mirror into the control shown under the message box
+    if (chatActiveAgentField) chatActiveAgentField.style.display = agentMergeMode ? 'none' : 'flex';
+    if (chatActiveAgentInput) {
+        if (idx >= 0) chatActiveAgentInput.value = idx;
+        chatActiveAgentInput.max = maxIdx;
+    }
+    if (chatActiveAgentName) chatActiveAgentName.textContent = currentAgentTab || '';
+}
+
+// Change the active agent from an index (used by both number inputs)
+function setActiveAgentByIndex(rawValue) {
+    let idx = parseInt(rawValue, 10);
+    if (isNaN(idx)) idx = 0;
+    idx = Math.max(0, Math.min(idx, agentTabNames.length - 1));
+    const targetName = agentTabNames[idx];
+    if (targetName && targetName !== currentAgentTab) {
+        switchAgentTab(targetName);
+    } else {
+        syncActiveAgentField();
+    }
+    if (typeof markSessionModified === 'function') markSessionModified();
+}
+
+if (agentMergeCheckbox) {
+    agentMergeCheckbox.addEventListener('change', () => {
+        // Persist current editor content before we potentially swap the view
+        saveCurrentAgentToMemory();
+        agentMergeMode = agentMergeCheckbox.checked;
+        if (activeAgentField) activeAgentField.style.display = agentMergeMode ? 'none' : 'flex';
+        if (!agentMergeMode) syncActiveAgentField();
+        if (chatActiveAgentField) chatActiveAgentField.style.display = agentMergeMode ? 'none' : 'flex';
+        // Reload the current tab so an empty active agent shows the default code
+        // (and switching back to merge clears the placeholder default).
+        switchAgentTab(currentAgentTab, true);
+        if (typeof markSessionModified === 'function') markSessionModified();
+    });
+}
+
+if (activeAgentInput) {
+    activeAgentInput.addEventListener('change', () => {
+        setActiveAgentByIndex(activeAgentInput.value);
+    });
+}
+
+if (chatActiveAgentInput) {
+    chatActiveAgentInput.addEventListener('change', () => {
+        setActiveAgentByIndex(chatActiveAgentInput.value);
+    });
+}
+
+// Restore merge mode from a loaded session (defaults to merge = true)
+function restoreAgentMergeMode(value) {
+    agentMergeMode = (value === undefined) ? true : !!value;
+    if (agentMergeCheckbox) agentMergeCheckbox.checked = agentMergeMode;
+    if (activeAgentField) activeAgentField.style.display = agentMergeMode ? 'none' : 'flex';
+    if (chatActiveAgentField) chatActiveAgentField.style.display = agentMergeMode ? 'none' : 'flex';
+    if (!agentMergeMode) syncActiveAgentField();
+}
+

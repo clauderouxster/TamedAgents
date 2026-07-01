@@ -393,6 +393,12 @@
                 <button id="cleanCurrentChatButton" class="action-btn" title="Clean current chat content" style="margin-left:6px;font-size:0.85em;color:#ef4444;">🗑</button>
                 <button id="toggleHelpZoneBottom" class="action-btn" title="Session help (hint & description)" style="margin-left:6px;font-size:0.85em;">❓ Help</button>
                 <span style="flex:1;"></span>
+                <div id="chatActiveAgentField" style="display:none;align-items:center;gap:4px;font-size:0.85em;color:var(--text-secondary);">
+                    <label style="margin:0;">Active Agent</label>
+                    <input type="number" id="chatActiveAgentInput" min="0" value="0" style="width:56px;font-size:0.95em;padding:2px 6px;border:1px solid var(--border-color);border-radius:4px;background:var(--bg-input,#fff);color:var(--text-primary);" title="Index of the active agent (0..n)">
+                    <span id="chatActiveAgentName" style="font-size:0.95em;"></span>
+                </div>
+                <span style="flex:1;"></span>
                 <button id="clearCurrentChatButton" class="action-btn danger" title="Delete current chat tab" style="font-size:0.85em;background:#dc2626;color:white;border-radius:4px;padding:2px 6px;">🗑</button>
                 <button id="copyChatButton" class="action-btn" title="Copy chat">📋 Copy</button>
                 <button id="cleanAllButton" class="action-btn danger" title="Clean All">🧹 Clean All</button>
@@ -811,6 +817,13 @@
                         <button id="compileBasicButton" class="dark-btn" style="font-size:11px;padding:4px 10px;display:none;" title="Compile to LispE">Compile</button>
                         <button id="tabsToSpacesAgentsButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;display:none;" title="Convert tabs to spaces">Tab→Space</button>
                         <button id="setAgentsButton" class="dark-btn" style="font-size:11px;padding:4px 10px;">Set</button>
+                        <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;color:var(--text-secondary);" title="Merge all agents into a single code (default). Uncheck to run a single active agent.">
+                            <input type="checkbox" id="agentMergeCheckbox" checked> merge
+                        </label>
+                        <div id="activeAgentField" style="display:none;align-items:center;gap:4px;">
+                            <label style="font-size:11px;color:var(--text-secondary);">active agent</label>
+                            <input type="number" id="activeAgentInput" class="dark-input" min="0" value="0" style="width:60px;font-size:11px;padding:2px 6px;" title="Index of the active agent (0..n)">
+                        </div>
                     </div>
                     <div style="display:flex;gap:6px;">
                         <button id="undoAgentsButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;" title="Undo">↩</button>

@@ -699,6 +699,7 @@ function buildCurrentSessionData() {
         agentTabNames: [...agentTabNames],
         currentAgentTab: currentAgentTab,
         agentModes: getAllAgentModes(),
+        agentMergeMode: (typeof agentMergeMode !== 'undefined') ? agentMergeMode : true,
         activeConnectors: getActiveConnectors(),
         codeRunner: getAllCodeRunnerContents(),
         codeRunnerTabNames: [...codeRunnerTabNames],
@@ -1324,13 +1325,17 @@ async function loadSession(sessionName) {
                     }
                     const targetAgent = sessionData.currentAgentTab || 'Agent 0';
                     switchAgentTab(targetAgent, true); // skipSave to preserve loaded contents
-                    console.log('Restored agents (multi-tab)');
-                } else if (typeof sessionData.agents === 'string' && agentsEditor) {
+                    console.log('Restored agents (multi-tab)');                } else if (typeof sessionData.agents === 'string' && agentsEditor) {
                     // Legacy format: single string
                     allAgentContents['Agent 0'] = sessionData.agents;
                     switchAgentTab('Agent 0', true); // skipSave to preserve loaded contents
                     console.log('Restored agents code (legacy)');
                 }
+            }
+
+            // Restore agents merge mode / active agent selection
+            if (typeof restoreAgentMergeMode === 'function') {
+                restoreAgentMergeMode(sessionData.agentMergeMode);
             }
 
             currentSessionName = sessionName;
