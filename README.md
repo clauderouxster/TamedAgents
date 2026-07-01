@@ -285,6 +285,10 @@ Multi-tab editor for writing agent logic.
 - Default tabs: `Agent 0` … `Agent 4` (expandable). Purple palette.
 - The leftmost button toggles the execution language: **LispE / BasAIc / Pythonic**. When BasAIc or Pythonic is selected, a **Compile** button appears that translates the source to LispE before execution; **Tab→Space** helps normalize whitespace.
 - **Set** loads the initialization code (all Core tabs) **and** all Agent tabs into the LispE runtime, then invokes the `Initialize` function with the current Prompts, Skills, Tools and User Data as lists.
+- **merge** (checkbox, on by default): when checked, **all** Agent tabs are concatenated and compiled together into a single runtime. Uncheck it to switch to **Active Agent** mode, where only one selected agent is compiled and executed.
+- **Active Agent** selector: when `merge` is off, a drop-down list appears (both next to the checkbox in the Code panel and, centered, under the chat message box) letting you pick the currently active agent by name. Selecting an agent there switches the editor to that tab, and both selectors stay in sync.
+  - In Active Agent mode, an **empty** agent falls back to the default initialization code at compile time, and an empty active tab displays that default code in the editor (without persisting it until you edit it).
+  - The merge state is saved and restored with the session.
 - When the user sends a message, the agent's `entry` function is called, which triggers the LLM call and routes the response to `entrypoint`.
 - A starter `Agent 0` template is provided:
   ```lisp
