@@ -166,6 +166,11 @@ let pendingChatImages = [];
 // be resolved at send time.
 let pendingChatPdfs = [];
 
+// Non-image, non-PDF files dropped onto the message box are ingested as plain
+// text. Their content is turned into text parts at send time (same content
+// format as PDFs). Each entry is { name, text }.
+let pendingChatTextFiles = [];
+
 // Add the image at the given index to the pending attachments of the chat input,
 // so that the text typed afterwards is associated with this image on send.
 function integrateImageIntoCurrentChat(index) {
@@ -207,7 +212,37 @@ function getPendingImagesCount() {
 function clearPendingImages() {
     pendingChatImages = [];
     pendingChatPdfs = [];
+    pendingChatTextFiles = [];
     renderPendingPreview();
+}
+
+// Stage a plain-text file as a pending attachment for the next message.
+function stagePendingTextFile(item) {
+    if (!item || typeof item.text !== 'string') return;
+    pendingChatTextFiles.push({ name: item.name || 'file.txt', text: item.text });
+    renderPendingPreview();
+    const chatInput = document.getElementById('chatInput');
+    if (chatInput) chatInput.focus();
+}
+
+// Remove a pending text file by index.
+function removePendingTextFile(index) {
+    if (index < 0 || index >= pendingChatTextFiles.length) return;
+    pendingChatTextFiles.splice(index, 1);
+    renderPendingPreview();
+}
+
+// Number of text files staged on the message box.
+function getPendingTextFilesCount() {
+    return pendingChatTextFiles.length;
+}
+
+// Return (and detach) the text files staged on the message box.
+function takePendingTextFiles() {
+    const out = pendingChatTextFiles.slice();
+    pendingChatTextFiles = [];
+    renderPendingPreview();
+    return out;
 }
 
 // Stage the PDF gallery item at the given index onto the message box.
@@ -258,7 +293,7 @@ function renderPendingPreview() {
     const preview = document.getElementById('chatImagePreview');
     if (!preview) return;
     preview.innerHTML = '';
-    if (pendingChatImages.length === 0 && pendingChatPdfs.length === 0) {
+    if (pendingChatImages.length === 0 && pendingChatPdfs.length === 0 && pendingChatTextFiles.length === 0) {
         preview.style.display = 'none';
         return;
     }
@@ -300,6 +335,30 @@ function renderPendingPreview() {
         remove.title = 'Remove PDF';
         remove.textContent = '✕';
         remove.addEventListener('click', () => removePendingPdf(index));
+
+        chip.appendChild(icon);
+        chip.appendChild(label);
+        chip.appendChild(remove);
+        preview.appendChild(chip);
+    });
+    pendingChatTextFiles.forEach((item, index) => {
+        const chip = document.createElement('div');
+        chip.className = 'chat-image-chip chat-pdf-chip';
+        chip.title = item.name + ' (text)';
+
+        const icon = document.createElement('span');
+        icon.className = 'chat-pdf-chip-icon';
+        icon.textContent = '📄';
+
+        const label = document.createElement('span');
+        label.className = 'chat-pdf-chip-label';
+        label.textContent = item.name;
+
+        const remove = document.createElement('button');
+        remove.className = 'chat-image-chip-remove';
+        remove.title = 'Remove file';
+        remove.textContent = '✕';
+        remove.addEventListener('click', () => removePendingTextFile(index));
 
         chip.appendChild(icon);
         chip.appendChild(label);
@@ -527,6 +586,21 @@ function loadImageFiles(fileList, integrate) {
     });
 }
 
+// Load arbitrary (non-image, non-PDF) files as plain text and stage them onto
+// the message box. The content is attached to the next message as text parts.
+function loadTextFiles(fileList, integrate) {
+    const files = Array.from(fileList || []);
+    files.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const text = (typeof e.target.result === 'string') ? e.target.result : '';
+            if (integrate) stagePendingTextFile({ name: file.name || 'file.txt', text: text });
+        };
+        reader.readAsText(file);
+    });
+    return files.length > 0;
+}
+
 // Handle a drop event's dataTransfer: add image files / image URL to the gallery.
 // When integrate is true, the image is also attached to the current chat.
 function handleImageDrop(dt, integrate) {
@@ -545,7 +619,13 @@ function handleImageDrop(dt, integrate) {
             loadPdfFiles(pdfFiles, integrate);
             return true;
         }
-        loadImageFiles(dt.files, integrate);
+        const imageFiles = Array.from(dt.files).filter(f => (f.type || '').startsWith('image/'));
+        if (imageFiles.length > 0) {
+            loadImageFiles(imageFiles, integrate);
+            return true;
+        }
+        // Any remaining files are ingested as plain text.
+        loadTextFiles(dt.files, integrate);
         return true;
     }
     if (isPdfUrl) {

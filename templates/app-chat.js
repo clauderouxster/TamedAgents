@@ -34,7 +34,8 @@ sendMessageButton.addEventListener('click', async () => {
 
     const hasPendingImages = (typeof getPendingImagesCount === 'function') && getPendingImagesCount() > 0;
     const hasPendingPdfs = (typeof getPendingPdfsCount === 'function') && getPendingPdfsCount() > 0;
-    if (!userMessage && !hasPendingImages && !hasPendingPdfs) return; // Ne rien faire si message, images ET pdf vides    const history = chatHistory[currentChatTab] || [];
+    const hasPendingTextFiles = (typeof getPendingTextFilesCount === 'function') && getPendingTextFilesCount() > 0;
+    if (!userMessage && !hasPendingImages && !hasPendingPdfs && !hasPendingTextFiles) return; // Ne rien faire si message, images, pdf ET fichiers vides    const history = chatHistory[currentChatTab] || [];
     if (history.length > 1) {
         const msg = history.at(-1);
         if (msg.sender === "user" && !(Array.isArray(msg.images) && msg.images.length > 0)) {
@@ -74,6 +75,15 @@ sendMessageButton.addEventListener('click', async () => {
         if (p && p.src) pdfParts = pdfParts.concat(ingestPdfToParts(p.src));
     });
     const pdfMeta = pendingPdfs.map(p => ({ name: (p && p.name) ? p.name : 'document.pdf' }));
+    // Detach any plain-text files staged via drag & drop. Their content is
+    // injected as text parts, in the same content format used for PDFs.
+    const pendingTextFiles = (typeof takePendingTextFiles === 'function') ? takePendingTextFiles() : [];
+    pendingTextFiles.forEach(f => {
+        if (f && typeof f.text === 'string') {
+            pdfParts = pdfParts.concat([{ type: 'text', text: `File: ${f.name}\n\n${f.text}` }]);
+            pdfMeta.push({ name: (f && f.name) ? f.name : 'file.txt' });
+        }
+    });
     addMessage(userMessage, 'user', undefined, pendingImages, pdfMeta); // Ajoute le message de l'utilisateur
     if (!chatHistory[currentChatTab]) chatHistory[currentChatTab] = [];
     const userEntry = {
@@ -678,6 +688,7 @@ function buildCurrentSessionData() {
         currentInitTab: currentInitTab,
         confidential: document.getElementById('confidentialInput').value,
         secret: document.getElementById('secretInput').value,
+        help: (typeof getSessionHelp === 'function') ? getSessionHelp() : { hint: '', description: '' },
         // NOTE: the top-level API key is intentionally NOT persisted in the
         // session. It would otherwise leak in exported session JSON files.
         // The key is kept server-scoped in localStorage (saveApiKeyForServer)
@@ -1247,7 +1258,13 @@ async function loadSession(sessionName) {
                 document.getElementById('secretInput').value = '';
             }
 
-            // Restore API Key: prefer session data, fall back to localStorage
+            // Restore session help (hint + description) and apply the hint to
+            // the chat input placeholder.
+            if (typeof setSessionHelp === 'function') {
+                setSessionHelp(sessionData.help || { hint: '', description: '' });
+                console.log('Restored session help');
+            }
+
             if (sessionData.apiKey !== undefined && sessionData.apiKey !== '') {
                 apiKeyInput.value = sessionData.apiKey;
                 // Also persist to localStorage so it survives future loads/switches

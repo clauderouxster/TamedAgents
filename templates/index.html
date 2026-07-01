@@ -268,6 +268,7 @@
                 <button id="themeToggleBtn" class="panel-trigger-btn" title="Toggle dark/light mode">🌗 Dark</button>
                 <button id="toggleDisplayZone" class="panel-trigger-btn" title="Toggle display zone">🖼️ Display</button>
                 <button id="toggleRecapZone" class="panel-trigger-btn" title="Session overview (prompts, skills, tools, data, agents)">👁️ Overview</button>
+                <button id="toggleHelpZone" class="panel-trigger-btn" title="Session help (hint & description)">❓ Help</button>
                 <button class="panel-trigger-btn right-panel-tab" data-panel="panelSettings" title="Settings">⚙️ Settings</button>
                 <button class="panel-group-btn" data-group="prompts" title="Prompts, Skills, Tools, Connectors">📝 Prompts</button>
                 <button class="panel-group-btn" data-group="code" title="Agents, Console, Base">💻 Code</button>
@@ -323,6 +324,29 @@
                 </div>
             </div>
             <div id="recapContent" class="recap-content"></div>
+        </div>
+
+        <!-- SESSION HELP ZONE (help button) -->
+        <div id="helpZone" style="display:none;">
+            <div class="recap-zone-header">
+                <span class="recap-zone-title">Session Help</span>
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <button id="toggleHelpPreviewButton" class="dark-btn-secondary" style="font-size:10px;padding:3px 8px;" title="Toggle edit / preview">👁️ Preview</button>
+                    <button id="applyHelpButton" class="dark-btn-secondary" style="font-size:10px;padding:3px 8px;" title="Apply hint to the message box">✓ Apply</button>
+                    <button id="closeHelpZoneBtn" class="dark-btn-secondary" style="font-size:10px;padding:3px 6px;" title="Hide help">✕</button>
+                </div>
+            </div>
+            <div id="helpContent" class="recap-content">
+                <div class="section-group">
+                    <label class="section-label">Hint (message box placeholder)</label>
+                    <input type="text" id="helpHintInput" class="dark-input" placeholder="Your message here..." style="width:100%;">
+                </div>
+                <div class="section-group" style="flex:1;display:flex;flex-direction:column;min-height:0;">
+                    <label class="section-label">Description (Markdown)</label>
+                    <textarea id="helpDescriptionInput" class="dark-textarea" placeholder="Describe how this session works..." style="flex:1;min-height:200px;"></textarea>
+                    <div id="helpDescriptionPreview" class="markdown-body" style="display:none;flex:1;overflow:auto;padding:10px;border:1px solid var(--border-color);border-radius:6px;background:var(--bg-surface);"></div>
+                </div>
+            </div>
         </div>
 
         <!-- CHAT AREA -->

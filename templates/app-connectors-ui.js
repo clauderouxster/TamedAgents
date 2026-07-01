@@ -1249,6 +1249,150 @@ if (closeDisplayZoneBtn) {
     })();
 })();
 
+// ===== SESSION HELP ZONE (help button) =====
+// Two editable fields per session:
+//  - hint        : overrides the chat input placeholder ("Your message here...")
+//  - description : Markdown text describing how the session works
+// The hint is automatically re-applied whenever a session is loaded.
+(function () {
+    const DEFAULT_HINT = 'Your message here...';
+    const helpZone = document.getElementById('helpZone');
+    const toggleHelpBtn = document.getElementById('toggleHelpZone');
+    const closeHelpBtn = document.getElementById('closeHelpZoneBtn');
+    const applyHelpBtn = document.getElementById('applyHelpButton');
+    const previewBtn = document.getElementById('toggleHelpPreviewButton');
+    const hintInput = document.getElementById('helpHintInput');
+    const descInput = document.getElementById('helpDescriptionInput');
+    const descPreview = document.getElementById('helpDescriptionPreview');
+    const chatInput = document.getElementById('chatInput');
+    if (!helpZone || !toggleHelpBtn) return;
+
+    // Apply the current hint value to the chat input placeholder.
+    function applyHint() {
+        if (!chatInput) return;
+        const h = (hintInput.value || '').trim();
+        chatInput.placeholder = h !== '' ? h : DEFAULT_HINT;
+    }
+
+    // Expose accessors used by session save / load.
+    window.getSessionHelp = function () {
+        return { hint: hintInput.value || '', description: descInput.value || '' };
+    };
+    window.setSessionHelp = function (help) {
+        help = help || {};
+        hintInput.value = help.hint || '';
+        descInput.value = help.description || '';
+        applyHint();
+        if (descPreview.style.display !== 'none') renderPreview();
+    };
+    window.applySessionHint = applyHint;
+
+    function renderPreview() {
+        let html = '';
+        try {
+            const raw = descInput.value || '';
+            html = (window.marked ? marked.parse(raw) : raw);
+            if (window.DOMPurify) html = DOMPurify.sanitize(html);
+        } catch (e) { html = ''; }
+        descPreview.innerHTML = html;
+    }
+
+    let previewMode = false;
+    function setPreview(on) {
+        previewMode = on;
+        if (on) {
+            renderPreview();
+            descInput.style.display = 'none';
+            descPreview.style.display = 'block';
+            previewBtn.textContent = '✏️ Edit';
+        } else {
+            descInput.style.display = 'block';
+            descPreview.style.display = 'none';
+            previewBtn.textContent = '👁️ Preview';
+        }
+    }
+
+    function openHelp() {
+        helpZone.style.display = 'flex';
+        localStorage.setItem('ta_helpzone_visible', 'true');
+    }
+    function closeHelp() {
+        helpZone.style.display = 'none';
+        localStorage.setItem('ta_helpzone_visible', 'false');
+    }
+
+    toggleHelpBtn.addEventListener('click', () => {
+        if (helpZone.style.display === 'none' || helpZone.style.display === '') openHelp();
+        else closeHelp();
+    });
+    if (closeHelpBtn) closeHelpBtn.addEventListener('click', closeHelp);
+    if (applyHelpBtn) applyHelpBtn.addEventListener('click', applyHint);
+    if (previewBtn) previewBtn.addEventListener('click', () => setPreview(!previewMode));
+    hintInput.addEventListener('input', applyHint);
+    if (typeof markSessionModified === 'function') {
+        hintInput.addEventListener('input', markSessionModified);
+        descInput.addEventListener('input', markSessionModified);
+    }
+
+    // Drag the help window by its header.
+    (function () {
+        const header = helpZone.querySelector('.recap-zone-header');
+        let dragging = false, sx, sy, sl, st;
+        header.addEventListener('mousedown', (e) => {
+            if (e.target.closest('button')) return;
+            dragging = true;
+            const rect = helpZone.getBoundingClientRect();
+            sx = e.clientX; sy = e.clientY; sl = rect.left; st = rect.top;
+            helpZone.style.right = 'auto';
+            helpZone.style.left = sl + 'px';
+            helpZone.style.top = st + 'px';
+            document.body.style.userSelect = 'none';
+            e.preventDefault();
+        });
+        document.addEventListener('mousemove', (e) => {
+            if (!dragging) return;
+            let nl = sl + (e.clientX - sx);
+            let nt = st + (e.clientY - sy);
+            nl = Math.max(0, Math.min(nl, window.innerWidth - 100));
+            nt = Math.max(0, Math.min(nt, window.innerHeight - 40));
+            helpZone.style.left = nl + 'px';
+            helpZone.style.top = nt + 'px';
+        });
+        document.addEventListener('mouseup', () => {
+            if (dragging) { dragging = false; document.body.style.userSelect = ''; }
+        });
+    })();
+
+    // Custom resize handle (bottom-right corner).
+    (function () {
+        const handle = document.createElement('div');
+        handle.className = 'recap-resize-se';
+        helpZone.appendChild(handle);
+        let resizing = false, sx, sy, sw, sh;
+        handle.addEventListener('mousedown', (e) => {
+            resizing = true;
+            const rect = helpZone.getBoundingClientRect();
+            sx = e.clientX; sy = e.clientY; sw = rect.width; sh = rect.height;
+            helpZone.style.right = 'auto';
+            helpZone.style.left = rect.left + 'px';
+            helpZone.style.top = rect.top + 'px';
+            document.body.style.userSelect = 'none';
+            e.preventDefault();
+            e.stopPropagation();
+        });
+        document.addEventListener('mousemove', (e) => {
+            if (!resizing) return;
+            const nw = Math.max(320, sw + (e.clientX - sx));
+            const nh = Math.max(200, sh + (e.clientY - sy));
+            helpZone.style.width = nw + 'px';
+            helpZone.style.height = nh + 'px';
+        });
+        document.addEventListener('mouseup', () => {
+            if (resizing) { resizing = false; document.body.style.userSelect = ''; }
+        });
+    })();
+})();
+
 // Keyboard shortcut: Escape closes right panel
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && rightPanel.classList.contains('open')) {
