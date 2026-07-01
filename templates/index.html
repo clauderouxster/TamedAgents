@@ -342,7 +342,15 @@
                     <input type="text" id="helpHintInput" class="dark-input" placeholder="Your message here..." style="width:100%;">
                 </div>
                 <div class="section-group" style="flex:1;display:flex;flex-direction:column;min-height:0;">
-                    <label class="section-label">Description (Markdown)</label>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                        <label class="section-label" style="margin:0;">Description (Markdown)</label>
+                        <div id="helpDocButtons" style="display:none;gap:6px;">
+                            <button id="helpAddDocButton" class="dark-btn-secondary" style="font-size:10px;padding:3px 8px;" title="Add a Doc tab">➕ Add</button>
+                            <button id="helpCleanDocsButton" class="dark-btn-secondary" style="font-size:10px;padding:3px 8px;" title="Clean all Doc tabs">🧹 Clean All</button>
+                            <button id="helpDeleteDocButton" class="dark-btn-secondary" style="font-size:10px;padding:3px 8px;" title="Delete current Doc tab">🗑️</button>
+                        </div>
+                    </div>
+                    <div id="helpDocTabsBar" class="tab-bar-dark" style="flex-wrap:wrap;"></div>
                     <textarea id="helpDescriptionInput" class="dark-textarea" placeholder="Describe how this session works..." style="flex:1;min-height:200px;"></textarea>
                     <div id="helpDescriptionPreview" class="markdown-body" style="display:none;flex:1;overflow:auto;padding:10px;border:1px solid var(--border-color);border-radius:6px;background:var(--bg-surface);"></div>
                 </div>

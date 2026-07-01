@@ -1265,7 +1265,79 @@ if (closeDisplayZoneBtn) {
     const descInput = document.getElementById('helpDescriptionInput');
     const descPreview = document.getElementById('helpDescriptionPreview');
     const chatInput = document.getElementById('chatInput');
+    const docTabsBar = document.getElementById('helpDocTabsBar');
+    const docButtons = document.getElementById('helpDocButtons');
+    const addDocBtn = document.getElementById('helpAddDocButton');
+    const cleanDocsBtn = document.getElementById('helpCleanDocsButton');
+    const deleteDocBtn = document.getElementById('helpDeleteDocButton');
     if (!helpZone || !toggleHelpBtn) return;
+
+    // Doc tabs data model: an array of { name, content } and the active index.
+    let docs = [{ name: 'Doc 0', content: '' }];
+    let activeDoc = 0;
+
+    // Persist the textarea content into the currently active Doc.
+    function saveCurrentDoc() {
+        if (docs[activeDoc]) docs[activeDoc].content = descInput.value;
+    }
+
+    // Rebuild the Doc tab buttons.
+    function renderDocTabs() {
+        docTabsBar.innerHTML = '';
+        docs.forEach((d, i) => {
+            const b = document.createElement('button');
+            b.textContent = d.name;
+            b.className = 'text-xs px-3 py-1 rounded-t ' +
+                (i === activeDoc ? 'bg-blue-200 text-blue-900 font-semibold' : 'bg-blue-100 text-blue-900');
+            b.addEventListener('click', () => selectDoc(i));
+            docTabsBar.appendChild(b);
+        });
+    }
+
+    // Switch to a given Doc tab.
+    function selectDoc(i) {
+        if (i < 0 || i >= docs.length) return;
+        saveCurrentDoc();
+        activeDoc = i;
+        descInput.value = docs[activeDoc].content || '';
+        renderDocTabs();
+        if (previewMode) renderPreview();
+    }
+
+    function addDoc() {
+        saveCurrentDoc();
+        docs.push({ name: 'Doc ' + docs.length, content: '' });
+        activeDoc = docs.length - 1;
+        descInput.value = '';
+        renderDocTabs();
+        if (previewMode) renderPreview();
+        if (typeof markSessionModified === 'function') markSessionModified();
+    }
+
+    function deleteDoc() {
+        if (docs.length <= 1) {
+            docs = [{ name: 'Doc 0', content: '' }];
+            activeDoc = 0;
+        } else {
+            docs.splice(activeDoc, 1);
+            docs.forEach((d, i) => { d.name = 'Doc ' + i; });
+            if (activeDoc >= docs.length) activeDoc = docs.length - 1;
+        }
+        descInput.value = docs[activeDoc].content || '';
+        renderDocTabs();
+        if (previewMode) renderPreview();
+        if (typeof markSessionModified === 'function') markSessionModified();
+    }
+
+    function cleanDocs() {
+        docs = [{ name: 'Doc 0', content: '' }];
+        activeDoc = 0;
+        descInput.value = '';
+        renderDocTabs();
+        if (previewMode) renderPreview();
+        if (typeof markSessionModified === 'function') markSessionModified();
+    }
+
 
     // Apply the current hint value to the chat input placeholder.
     function applyHint() {
@@ -1276,14 +1348,31 @@ if (closeDisplayZoneBtn) {
 
     // Expose accessors used by session save / load.
     window.getSessionHelp = function () {
-        return { hint: hintInput.value || '', description: descInput.value || '' };
+        saveCurrentDoc();
+        return {
+            hint: hintInput.value || '',
+            docs: docs.map(d => ({ name: d.name, content: d.content || '' })),
+            // Backward-compatible field: the first Doc's content.
+            description: docs[0] ? (docs[0].content || '') : ''
+        };
     };
     window.setSessionHelp = function (help) {
         help = help || {};
         hintInput.value = help.hint || '';
-        descInput.value = help.description || '';
+        if (Array.isArray(help.docs) && help.docs.length) {
+            docs = help.docs.map((d, i) => ({
+                name: d.name || ('Doc ' + i),
+                content: d.content || ''
+            }));
+        } else {
+            // Legacy sessions stored a single "description" string.
+            docs = [{ name: 'Doc 0', content: help.description || '' }];
+        }
+        activeDoc = 0;
+        descInput.value = docs[0].content || '';
+        renderDocTabs();
         applyHint();
-        if (descPreview.style.display !== 'none') renderPreview();
+        if (previewMode) renderPreview();
     };
     window.applySessionHint = applyHint;
 
@@ -1301,13 +1390,16 @@ if (closeDisplayZoneBtn) {
     function setPreview(on) {
         previewMode = on;
         if (on) {
+            saveCurrentDoc();
             renderPreview();
             descInput.style.display = 'none';
             descPreview.style.display = 'block';
+            if (docButtons) docButtons.style.display = 'none';
             previewBtn.textContent = '✏️ Edit';
         } else {
             descInput.style.display = 'block';
             descPreview.style.display = 'none';
+            if (docButtons) docButtons.style.display = 'flex';
             previewBtn.textContent = '👁️ Preview';
         }
     }
@@ -1332,11 +1424,17 @@ if (closeDisplayZoneBtn) {
     if (closeHelpBtn) closeHelpBtn.addEventListener('click', closeHelp);
     if (applyHelpBtn) applyHelpBtn.addEventListener('click', applyHint);
     if (previewBtn) previewBtn.addEventListener('click', () => setPreview(!previewMode));
+    if (addDocBtn) addDocBtn.addEventListener('click', addDoc);
+    if (cleanDocsBtn) cleanDocsBtn.addEventListener('click', cleanDocs);
+    if (deleteDocBtn) deleteDocBtn.addEventListener('click', deleteDoc);
     hintInput.addEventListener('input', applyHint);
     if (typeof markSessionModified === 'function') {
         hintInput.addEventListener('input', markSessionModified);
         descInput.addEventListener('input', markSessionModified);
     }
+
+    // Initial render of the Doc tabs.
+    renderDocTabs();
 
     // Drag the help window by its header.
     (function () {
