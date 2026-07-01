@@ -174,10 +174,22 @@ Switching tabs auto-saves the current chat to memory and loads the target tab's 
 - A **multiline textarea** with a send button (also sends on Enter; Shift+Enter for newline). A hidden file input enables attachments.
 - **▲ Undo / ▼ Redo**: remove the last message pair or re-inject a previously undone pair
 - **🗑 Clean current chat**: clear the messages of the active chat tab while keeping it
+- **❓ Help**: open / close the **Session Help** zone (see below)
 - **🗑 Delete current chat tab**: remove the chat tab itself
 - **📋 Copy**: copy the entire chat history to the clipboard
 - **🧹 Clean All**: clear all editable fields (prompts, skills, tools, etc.) while preserving sessions and API keys
 - **🗑️ Reset**: full environment reset
+
+#### Session Help
+
+A per-session help panel that documents how a session is meant to be used. It is opened either from the top-bar **?** overview button or the **❓ Help** button in the chat actions bar, and appears as a **floating, draggable window** whose visibility is remembered in `localStorage`.
+
+It has two parts:
+- **Hint** — a short one-liner that is applied as the **placeholder text of the chat input**, so the user immediately sees what a given session expects. The hint is re-applied automatically every time the session is loaded.
+- **Description** — a multi-tab **Markdown** documentation area (`Doc 0`, `Doc 1`, … ; add / delete / 🧹 clean tabs) with a **👁️ Preview / ✏️ Edit** toggle that renders the Markdown (sanitized) in place.
+
+Both the hint and all Doc tabs are **saved and restored with the session** (older sessions storing a single `description` string are migrated transparently).
+
 
 ### Display Zone
 
