@@ -740,6 +740,7 @@ const panelTitles = {
     panelSkills: '🎯 Skills',
     panelUserData: '📊 User Data',
     panelOutput: '📤 Output',
+    panelDB: '🗄️ DB',
     panelImages: '🖼️ Images',
     panelPdfs: '📄 PDFs',
     panelTools: '🔧 Tools',
@@ -753,7 +754,7 @@ const panelTitles = {
 const panelGroups = {
     prompts: ['panelPrompts', 'panelSkills', 'panelTools', 'panelConnectors'],
     code: ['panelAgents', 'panelConsole', 'panelInit'],
-    data: ['panelUserData', 'panelOutput', 'panelImages', 'panelPdfs']
+    data: ['panelUserData', 'panelOutput', 'panelDB', 'panelImages', 'panelPdfs']
 };
 
 // Toggle left sidebar

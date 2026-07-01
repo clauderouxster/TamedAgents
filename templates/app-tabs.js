@@ -920,6 +920,32 @@ document.getElementById('copyUserDataButton').addEventListener('click', () => {
     }
 });
 
+// Export all User Data tabs into a named DB table (IndexedDB). The user is
+// prompted for a table name; the data is appended after the table's existing
+// (non-empty) entries and re-indexed as DB 0, DB 1, ...
+document.getElementById('exportUserDataToDBButton').addEventListener('click', () => {
+    saveCurrentUserDataToMemory();
+    const values = userDataTabNames.map(name => allUserDataContents[name] || '');
+    if (typeof window.setTable !== 'function' ||
+        typeof window.getDBData !== 'function' ||
+        typeof window.setDBData !== 'function') {
+        return;
+    }
+    const tableName = (window.prompt('Export to DB table (name):', 'default') || '').trim();
+    if (!tableName) return;
+    // Switch to (creating if needed) the target table, then append the values
+    window.setTable(unicodeBtoa(tableName));
+    let existing = [];
+    try { existing = JSON.parse(unicodeAtob(window.getDBData())); } catch (e) { existing = []; }
+    existing = existing.filter(v => v !== '');
+    const combined = existing.concat(values);
+    window.setDBData(unicodeBtoa(JSON.stringify(combined)));
+    const btn = document.getElementById('exportUserDataToDBButton');
+    const orig = btn.innerHTML;
+    btn.innerHTML = '\u2713 Exported';
+    setTimeout(() => { btn.innerHTML = orig; }, 1500);
+});
+
 // Get all user data contents (for config save/load)
 function getAllUserDataContents() {
     saveCurrentUserDataToMemory();

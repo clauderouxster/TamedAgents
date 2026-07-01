@@ -435,6 +435,7 @@
             <button class="rp-tab-btn" data-rpanel="panelInit" data-group="code">⚡ Core</button>
             <button class="rp-tab-btn" data-rpanel="panelUserData" data-group="data">📊 User Data</button>
             <button class="rp-tab-btn" data-rpanel="panelOutput" data-group="data">📤 Output</button>
+            <button class="rp-tab-btn" data-rpanel="panelDB" data-group="data">🗄️ DB</button>
             <button class="rp-tab-btn" data-rpanel="panelImages" data-group="data">🖼️ Images</button>
             <button class="rp-tab-btn" data-rpanel="panelPdfs" data-group="data">📄 PDFs</button>
         </div>
@@ -637,6 +638,7 @@
                     <div style="display:flex;gap:6px;">
                         <button id="loadUserDataFileButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">Load</button>
                         <button id="saveUserDataSessionButton" class="dark-btn" style="font-size:11px;padding:4px 10px;">💾 Save</button>
+                        <button id="exportUserDataToDBButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;" title="Export User Data content to the DB (IndexedDB)">🗄️ Export</button>
                         <button id="searchUserDataButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;">🔍 Search</button>
                         <button id="copyUserDataButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;display:flex;align-items:center;" title="Copy to clipboard"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
                         <button id="undoUserDataTabButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;display:none;" title="Undo deleted tab">↩</button>
@@ -722,6 +724,39 @@
                     <textarea id="outputInput3" class="output-textarea dark-textarea hidden" data-output="Out 3" placeholder="Out 3..."></textarea>
                     <textarea id="outputInput4" class="output-textarea dark-textarea hidden" data-output="Out 4" placeholder="Out 4..."></textarea>
                 </div>
+            </div>
+
+            <!-- ===== DB (IndexedDB) ===== -->
+            <div id="panelDB" class="panel-section">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <span class="section-label" style="margin:0;">DB (IndexedDB)</span>
+                    <div style="display:flex;gap:6px;">
+                        <button id="loadDBFileButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;" title="Load a JSON key→value file into the DB">Load</button>
+                        <button id="saveDBFileButton" class="dark-btn" style="font-size:11px;padding:4px 10px;" title="Export the DB as a JSON key→value file">💾 Save</button>
+                        <button id="exportDBToUserDataButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;" title="Export the checked DB tabs (or all if none checked) to User Data">📊 → User Data</button>
+                        <button id="copyDBButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;display:flex;align-items:center;" title="Copy to clipboard"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+                        <button id="clearDBButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;" title="Clear the current DB tab">🗑️</button>
+                        <button id="destroyDBButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;" title="Destroy the whole DB (wipe IndexedDB)">🧨 Wipe</button>
+                    </div>
+                    <input type="file" id="dbFileInput" class="hidden" accept="application/json,.json">
+                </div>
+                <p style="font-size:11px;color:var(--text-muted);margin:0 0 10px;">
+                    Global data stored in <strong>IndexedDB</strong> (not saved into sessions). Organized as
+                    <strong>tables</strong> (top level) &rarr; indexed value tabs. Access it from agents with
+                    <code>setTable</code>, <code>getDBData</code>, <code>getDBValue</code>, <code>setDBValue</code>, <code>pushDBValue</code>, <code>getDBSize</code>.
+                </p>
+                <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">
+                    <span style="font-size:11px;color:var(--text-muted);">Table:</span>
+                    <select id="dbTableSelect" class="dark-input" style="font-size:12px;padding:3px 8px;flex:1;max-width:220px;"></select>
+                    <button id="newDBTableButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;" title="Create a new table">＋ Table</button>
+                    <button id="deleteDBTableButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;" title="Delete the current table">🗑️ Table</button>
+                    <button id="selectDBTabsButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;margin-left:auto;" title="Check all DB tabs">☑ Select all</button>
+                    <button id="deselectDBTabsButton" class="dark-btn-secondary" style="font-size:11px;padding:4px 10px;" title="Uncheck all selected DB tabs">☐ Deselect</button>
+                </div>
+                <div id="dbTabsBar" class="tab-bar-dark">
+                    <button id="addDBTabButton" class="bg-sky-300 hover:bg-sky-400 text-sky-900 text-xs px-2 py-1 rounded-t font-bold" title="Add DB tab">+</button>
+                </div>
+                <div id="dbTabsContent"></div>
             </div>
 
             <!-- ===== IMAGES ===== -->
@@ -1175,6 +1210,7 @@
     <script src="app-chat.js"></script>
     <script src="app-sessions.js"></script>
     <script src="app-tabs.js"></script>
+    <script src="app-db.js"></script>
     <script src="app-agents.js"></script>
     <script src="app-editors.js"></script>
     <script src="app-connectors-ui.js"></script>

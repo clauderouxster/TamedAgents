@@ -1307,6 +1307,51 @@ const initDefaultCode_lib3 = `
 (defun getOutputSize()
     (integer . evaljs "getOutputSize();"))
 
+; ---- DB section (persisted in IndexedDB, global, not tied to a session) ----
+; The DB is organized as named TABLES, each containing indexed value tabs.
+; setTable selects (creating if needed) the table on which the getDB*/setDB*
+; functions below operate.
+
+; Select (creating if needed) the current DB table by name
+(defun setTable(name)
+    (evaljs (+ "setTable(\`" (btoa name) "\`);")))
+
+; Return the current DB table name
+(defun getTable()
+    (evaljs "getTable();"))
+
+; Return the list of DB table names
+(defun getTableNames()
+    (json_parse (atob . evaljs "getTableNames();")))
+
+; Delete a DB table by name
+(defun deleteTable(name)
+    (evaljs (+ "deleteTable(\`" (btoa name) "\`);")))
+
+; Return all DB fields of the current table as a list of strings
+(defun getDBData()
+    (json_parse (atob . evaljs "getDBData();")))
+
+; Return the value of a specific DB field by index (0 = DB 0)
+(defun getDBValue(idx)
+    (atob . evaljs (f_ "getDBDataValue({idx});")))
+
+; Return the number of DB tabs
+(defun getDBSize()
+    (integer . evaljs "getDBSize();"))
+
+; Replace ALL DB fields from a list of strings; persisted to IndexedDB
+(defun setDBData(values)
+    (evaljs (+ "setDBData(\`" (btoa . json values) "\`);")))
+
+; Set the value of a specific DB field by index; persisted to IndexedDB
+(defun setDBValue(idx value)
+    (evaljs (f_ "setDBDataValue({idx}, \`{btoa value}\`);")))
+
+; Append a new DB field with the given value; returns its tab name ("DB N")
+(defun pushDBValue(value)
+    (evaljs (+ "pushDBDataValue(\`" (btoa value) "\`);")))
+
 ; ---- Images section ----
 
 ; Return the number of images currently in the Images gallery

@@ -35,9 +35,12 @@ sendMessageButton.addEventListener('click', async () => {
     const hasPendingImages = (typeof getPendingImagesCount === 'function') && getPendingImagesCount() > 0;
     const hasPendingPdfs = (typeof getPendingPdfsCount === 'function') && getPendingPdfsCount() > 0;
     const hasPendingTextFiles = (typeof getPendingTextFilesCount === 'function') && getPendingTextFilesCount() > 0;
-    if (!userMessage && !hasPendingImages && !hasPendingPdfs && !hasPendingTextFiles) return; // Ne rien faire si message, images, pdf ET fichiers vides    const history = chatHistory[currentChatTab] || [];
+    if (!userMessage && !hasPendingImages && !hasPendingPdfs && !hasPendingTextFiles) return; // Ne rien faire si message, images, pdf ET fichiers vides
+    const history = Array.isArray(chatHistory[currentChatTab])
+        ? chatHistory[currentChatTab]
+        : (chatHistory[currentChatTab] = []);
     if (history.length > 1) {
-        const msg = history.at(-1);
+        const msg = history[history.length - 1];
         if (msg.sender === "user" && !(Array.isArray(msg.images) && msg.images.length > 0)) {
             history.pop();
             renderChatHistory(); // Render the now almost empty chat history (only initial message)
@@ -681,8 +684,8 @@ function buildCurrentSessionData() {
         outputData: getAllOutputContents(),
         outputDataTabNames: trimTabNames(outputTabNames, allOutputContents),
         currentOutputTab: currentOutputTab,
-        imagesGallery: (typeof getAllImages === 'function') ? getAllImages() : [],
-        pdfsGallery: (typeof getAllPdfs === 'function') ? getAllPdfs() : [],
+        imagesGallery: (typeof getAllImagesForStorage === 'function') ? getAllImagesForStorage() : ((typeof getAllImages === 'function') ? getAllImages() : []),
+        pdfsGallery: (typeof getAllPdfsForStorage === 'function') ? getAllPdfsForStorage() : ((typeof getAllPdfs === 'function') ? getAllPdfs() : []),
         initialization: getAllInitContents(),
         initTabNames: [...initTabNames],
         currentInitTab: currentInitTab,
@@ -730,7 +733,13 @@ function saveSessionConfirmed(sessionName) {
     const sessionData = buildCurrentSessionData();
     try {
         const isNew = !localStorage.getItem(llmServerSelect.value+`_session_${sessionName}`);
-        compressAndStore(llmServerSelect.value+`_session_${sessionName}`, JSON.stringify(sessionData));
+        const stored = compressAndStore(llmServerSelect.value+`_session_${sessionName}`, JSON.stringify(sessionData));
+        if (!stored) {
+            // localStorage quota was exceeded: the write was skipped. Do NOT
+            // report success, and do not register a new session in the tree.
+            showModal(`Session "${sessionName}" NOT saved: local storage is full.`, false);
+            return;
+        }
         // If this is a new session, place it in the current folder of the tree
         if (isNew) {
             const tree = getSessionTree();
@@ -836,17 +845,27 @@ async function loadSession(sessionName) {
                 // Check if new format (Chat 0-4) or legacy format (Prompt I/II/III/System)
                 const hasNewFormat = 'Chat 0' in sessionData.allChatHistories;
                 
+                // Ensure each restored history is a real Array (JSON may have
+                // reconstructed an array-like object, which lacks .at()/.pop()/.map()).
+                const asArray = (v) => {
+                    if (Array.isArray(v)) return v;
+                    if (v && typeof v === 'object') {
+                        return typeof v.length === 'number' ? Array.from(v) : Object.values(v);
+                    }
+                    return [];
+                };
+
                 if (hasNewFormat) {
                     // Populate chatHistory dict directly from session data
                     const allTabNames = sessionData.chatTabNames || Object.keys(sessionData.allChatHistories);
                     allTabNames.forEach(chatTab => {
-                        chatHistory[chatTab] = (sessionData.allChatHistories[chatTab]) || [];
+                        chatHistory[chatTab] = asArray(sessionData.allChatHistories[chatTab]);
                     });
                 } else {
                     // Legacy format: map prompt tabs to Chat tabs
                     const legacyTabNames = ['Prompt I', 'Prompt II', 'Prompt III', 'System'];
                     legacyTabNames.forEach((tabName, i) => {
-                        chatHistory[`Chat ${i}`] = sessionData.allChatHistories[tabName] || [];
+                        chatHistory[`Chat ${i}`] = asArray(sessionData.allChatHistories[tabName]);
                     });
                 }
             }

@@ -130,33 +130,56 @@ function getPendingChats() {
     return window.__pendingChats || '';
 }
 
-// LZ-String compression helpers for localStorage session data
-// Above this size, LZString.compressToUTF16 becomes very slow (several seconds
-// of synchronous UI freeze) while giving almost no gain on already-incompressible
-// payloads such as base64 image data URLs. In that case we store plain JSON
-// instead — loadAndDecompress auto-detects it (string starting with { or [).
-const COMPRESSION_SIZE_THRESHOLD = 200000;
+// LZ-String compression helpers for localStorage session data.
+// We ALWAYS compress before storing: LZString.compressToUTF16 packs the data
+// far more densely (roughly 2x on base64 image URLs, much more on text), which
+// is what keeps a session under the ~5MB localStorage quota. Storing large
+// payloads uncompressed used to raise QuotaExceededError even on an otherwise
+// empty localStorage. The brief synchronous cost of compression is preferable
+// to losing the write. loadAndDecompress auto-detects the format.
 // Compress JSON string and store in localStorage with quota error handling
 function compressAndStore(key, jsonString) {
+    // Prepare the payload first (never let a compression error abort the write).
+    let payload;
     try {
-        if (jsonString.length > COMPRESSION_SIZE_THRESHOLD) {
-            // Skip compression for large payloads to avoid a multi-second UI freeze.
-            localStorage.setItem(key, jsonString);
-            return;
-        }
-        const compressed = LZString.compressToUTF16(jsonString);
-        localStorage.setItem(key, compressed);
+        payload = LZString.compressToUTF16(jsonString);
+    } catch (_) {
+        payload = jsonString;
+    }
+    try {
+        localStorage.setItem(key, payload);
+        return true;
     } catch (e) {
-        if (e && e.name === 'QuotaExceededError') {
-            // Payload too large for localStorage (e.g. a session embedding a
-            // multi-MB image). Drop the stale entry and skip persisting rather
-            // than crashing the send pipeline; the in-memory session is intact.
-            try { localStorage.removeItem(key); } catch (_) { /* ignore */ }
-            console.warn(`[session] localStorage quota exceeded for "${key}" (${(jsonString.length / 1048576).toFixed(2)}MB) — session not persisted.`);
-            return;
+        if (e && (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014)) {
+            // localStorage is full. IMPORTANT: do NOT remove the existing entry.
+            // `setItem` is atomic — on failure the previous value is preserved,
+            // so any session already stored under `key` stays intact. Removing
+            // it here (as we used to) would DESTROY valid saved sessions, which
+            // is exactly what happened when the quota was reached. We simply
+            // skip persisting this write and warn the user once. The reported
+            // size is the COMPRESSED payload (2 bytes per UTF-16 code unit),
+            // i.e. the value actually measured against the quota — not the raw
+            // JSON length.
+            console.warn(`[session] localStorage quota exceeded for "${key}" (${(payload.length * 2 / 1048576).toFixed(2)}MB compressed) — change NOT persisted (existing data kept).`);
+            notifyStorageFull();
+            return false;
         }
         throw e;
     }
+}
+
+// Warn the user (at most once per minute) that localStorage is full and that
+// their latest changes could not be saved. Existing sessions are preserved.
+let _storageFullNotifiedAt = 0;
+function notifyStorageFull() {
+    const now = Date.now();
+    if (now - _storageFullNotifiedAt < 60000) return;
+    _storageFullNotifiedAt = now;
+    const msg = 'Local storage is full: your latest changes could not be saved. '
+        + 'Existing sessions are preserved. Please export and then delete some '
+        + 'sessions (or remove large images) to free up space.';
+    if (typeof showModal === 'function') showModal(msg, false);
+    else console.error(msg);
 }
 
 // Load from localStorage and auto-detect compressed vs plain JSON (backward compatible)

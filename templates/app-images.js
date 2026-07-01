@@ -67,6 +67,22 @@ function getAllImages() {
     return imageItems.map(it => ({ name: it.name, src: it.src, isUrl: it.isUrl, kind: it.kind || 'image' }));
 }
 
+// Storage-safe copy: keep only the reference (path / http(s) URL), never the
+// heavy base64 `data:` payload. Local images (base64) are stored as a stripped
+// reference so sessions stay small; remote images keep their URL as the path.
+function getAllImagesForStorage() {
+    return imageItems.map(it => {
+        const isData = typeof it.src === 'string' && it.src.startsWith('data:');
+        return {
+            name: it.name,
+            src: isData ? '' : it.src,
+            isUrl: !!it.isUrl,
+            kind: it.kind || 'image',
+            stripped: isData || undefined
+        };
+    });
+}
+
 // Replace the whole gallery (used when loading a session).
 function setAllImages(items) {
     const all = Array.isArray(items) ? items : [];
@@ -464,6 +480,20 @@ function resetPdfsGallery() {
 // Return a shallow copy of all PDFs (for session persistence).
 function getAllPdfs() {
     return pdfItems.map(it => ({ name: it.name, src: it.src, isUrl: it.isUrl }));
+}
+
+// Storage-safe copy: keep only the reference (path / http(s) URL), never the
+// heavy base64 `data:` payload.
+function getAllPdfsForStorage() {
+    return pdfItems.map(it => {
+        const isData = typeof it.src === 'string' && it.src.startsWith('data:');
+        return {
+            name: it.name,
+            src: isData ? '' : it.src,
+            isUrl: !!it.isUrl,
+            stripped: isData || undefined
+        };
+    });
 }
 
 // Replace the whole PDF gallery (used when loading a session).
